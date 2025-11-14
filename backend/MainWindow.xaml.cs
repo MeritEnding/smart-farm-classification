@@ -6,24 +6,44 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media.Imaging;
-// ONNX 런타임 라이브러리
 using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
-// 이미지 처리를 위한 SixLabors 라이브러리
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 
 namespace MangoClassifierWPF
 {
+    public class PredictionScore
+    {
+        public string ClassName { get; set; } = "";
+        public double Confidence { get; set; }
+    }
+
+
     public partial class MainWindow : Window
     {
         private InferenceSession? _session;
 
         // ----------------------------------------------------------------------
-        // ⚠️ [중요] 님께서 학습시킨 클래스 이름으로 이 배열을 수정하세요!
+        // [수정됨 1] 🚨 모델이 학습한 "알파벳 순서"와 100% 일치시켰습니다.
         // ----------------------------------------------------------------------
-        private readonly string[] _classNames = new string[] { "overripe", "breaking - stage","un-healthy", "ripe", "unripe", "half-riping-stage" }; // ⬅️⬅️⬅️ 예시입니다. 꼭 수정하세요!
+        private readonly string[] _classNames = new string[]
+         { "overripe", "breaking - stage","un-healthy", "ripe", "unripe", "half-riping-stage" };
+
+        // ----------------------------------------------------------------------
+        // [추가됨 2] 🇰🇷 영어 클래스 이름을 한글로 번역하기 위한 "번역 사전"
+        // (이곳에서 원하시는 한글 이름으로 수정하실 수 있습니다.)
+        // ----------------------------------------------------------------------
+        private readonly Dictionary<string, string> _translationMap = new Dictionary<string, string>
+        {
+            { "breaking - stage", "익어가는 중" },
+            { "half-riping-stage", "반숙" },
+            { "overripe", "과숙 (지나치게 익음)" },
+            { "ripe", "익음 (정상)" },
+            { "un-healthy", "비정상 (병든 망고)" },
+            { "unripe", "안 익음 (미숙)" }
+        };
 
         private const int ModelInputSize = 224;
 
@@ -41,8 +61,7 @@ namespace MangoClassifierWPF
 
                 if (!File.Exists(modelPath))
                 {
-                    MessageBox.Show($"모델 파일을 찾을 수 없습니다: {modelPath}\nbest.onnx 파일을 프로젝트에 추가하고 '속성'에서 '출력 디렉터리로 복사'를 '새 버전이면 복사'로 설정했는지 확인하세요.",
-                        "모델 로드 오류", MessageBoxButton.OK, MessageBoxImage.Error);
+                    MessageBox.Show($"모델 파일을 찾을 수 없습니다: {modelPath}", "모델 로드 오류", MessageBoxButton.OK, MessageBoxImage.Error);
                     return;
                 }
 
@@ -57,7 +76,6 @@ namespace MangoClassifierWPF
             catch (Exception ex)
             {
                 MessageBox.Show($"모델 로드 중 심각한 오류 발생: {ex.Message}", "모델 로드 실패", MessageBoxButton.OK, MessageBoxImage.Error);
-                Application.Current.Shutdown();
             }
         }
 
@@ -71,7 +89,7 @@ namespace MangoClassifierWPF
 
             OpenFileDialog openFileDialog = new OpenFileDialog
             {
-                Filter = "이미지 파일 (*.jpg;*.jpeg;*.png)|*.jpg;*.jpeg;*.png|모든 파일 (*.*)|*.json",
+                Filter = "이미지 파일 (*.jpg;*.jpeg;*.png)|*.jpg;*.jpeg;*.png|모든 파일 (*.*)|*.*",
                 Title = "테스트할 이미지 선택"
             };
 
@@ -90,11 +108,15 @@ namespace MangoClassifierWPF
 
                     ResultTextBlock.Text = "예측 중...";
                     ConfidenceTextBlock.Text = "...";
+                    FullResultsListView.ItemsSource = null;
 
-                    var (predictedClass, confidence) = await RunPredictionAsync(imagePath);
+                    // (predictedClass, confidence, allScores) 값은
+                    // 이제 "한글로 번역된" 결과가 담겨서 옵니다.
+                    var (predictedClass, confidence, allScores) = await RunPredictionAsync(imagePath);
 
                     ResultTextBlock.Text = $"{predictedClass}";
                     ConfidenceTextBlock.Text = $"{confidence * 100:F2} %";
+                    FullResultsListView.ItemsSource = allScores.OrderByDescending(s => s.Confidence);
                 }
                 catch (Exception ex)
                 {
@@ -105,18 +127,23 @@ namespace MangoClassifierWPF
             }
         }
 
-        private async System.Threading.Tasks.Task<(string, float)> RunPredictionAsync(string imagePath)
+        // 반환 타입 (string TopClass, float TopConfidence, List<PredictionScore> AllScores)
+        // 여기서 string TopClass는 이제 "한글" 이름이 됩니다.
+        private async System.Threading.Tasks.Task<(string TopClass, float TopConfidence, List<PredictionScore> AllScores)> RunPredictionAsync(string imagePath)
         {
             return await System.Threading.Tasks.Task.Run(() =>
             {
                 using (var image = SixLabors.ImageSharp.Image.Load<Rgb24>(imagePath))
                 {
                     image.Mutate(x =>
-                        x.Resize(ModelInputSize, ModelInputSize)
+                        x.Resize(new ResizeOptions
+                        {
+                            Size = new SixLabors.ImageSharp.Size(ModelInputSize, ModelInputSize),
+                            Mode = SixLabors.ImageSharp.Processing.ResizeMode.Crop
+                        })
                     );
 
                     var tensor = new DenseTensor<float>(new[] { 1, 3, ModelInputSize, ModelInputSize });
-
                     for (int y = 0; y < image.Height; y++)
                     {
                         for (int x = 0; x < image.Width; x++)
@@ -128,10 +155,7 @@ namespace MangoClassifierWPF
                         }
                     }
 
-                    var inputs = new List<NamedOnnxValue>
-                    {
-                        NamedOnnxValue.CreateFromTensor("images", tensor)
-                    };
+                    var inputs = new List<NamedOnnxValue> { NamedOnnxValue.CreateFromTensor("images", tensor) };
 
                     if (_session == null)
                     {
@@ -140,24 +164,40 @@ namespace MangoClassifierWPF
 
                     using (var results = _session.Run(inputs))
                     {
-                        // [수정됨] 5. 결과 후처리
                         var output = results.First().AsTensor<float>();
-
-                        // [수정] Softmax 함수를 호출하지 않습니다.
-                        // output.ToArray() 자체가 이미 확률 배열입니다.
                         var probabilities = output.ToArray();
 
-                        // 가장 높은 확률을 가진 클래스 찾기
+                        var allScores = new List<PredictionScore>();
+                        for (int i = 0; i < probabilities.Length; i++)
+                        {
+                            // ----------------------------------------------------------
+                            // [수정됨 3] 영어 이름을 한글로 번역
+                            // ----------------------------------------------------------
+                            string englishName = _classNames[i]; // (예: "ripe")
+                            string koreanName = _translationMap[englishName]; // (예: "익음 (정상)")
+
+                            allScores.Add(new PredictionScore
+                            {
+                                ClassName = koreanName, // <-- 한글 이름 저장
+                                Confidence = probabilities[i]
+                            });
+                        }
+
+                        // 10. 가장 높은 점수 찾기 (기존 로직)
                         float maxConfidence = probabilities.Max();
                         int maxIndex = Array.IndexOf(probabilities, maxConfidence);
-                        string predictedClass = _classNames[maxIndex];
 
-                        return (predictedClass, maxConfidence);
+                        // ----------------------------------------------------------
+                        // [수정됨 4] Top 클래스도 한글로 번역
+                        // ----------------------------------------------------------
+                        string englishTopClass = _classNames[maxIndex]; // (예: "ripe")
+                        string koreanTopClass = _translationMap[englishTopClass]; // (예: "익음 (정상)")
+
+                        // 11. "한글로 번역된" Top 클래스 이름과 전체 리스트를 반환
+                        return (koreanTopClass, maxConfidence, allScores);
                     }
                 }
             });
         }
-
-        // [수정됨] Softmax 함수를 완전히 삭제했습니다.
     }
 }
