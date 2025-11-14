@@ -5,9 +5,10 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:MangoClassifierWPF"
         mc:Ignorable="d"
-        Title="AI Vision Dashboard | Mango Quality Assessment" Height="650" Width="1000"
+        Title="AI Vision Dashboard | Mango Quality Assessment" Height="750" Width="1000"
         WindowStartupLocation="CenterScreen"
         Background="#1E1E1E">
+
     <Window.Resources>
         <Style TargetType="Control">
             <Setter Property="TextOptions.TextFormattingMode" Value="Display"/>
@@ -32,9 +33,7 @@
             <Setter Property="FontSize" Value="12"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="Foreground" Value="#AAAAAA"/>
-            <Setter Property="TextWrapping" Value="NoWrap"/>
             <Setter Property="Margin" Value="0,0,0,10"/>
-            <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
         </Style>
 
         <Style TargetType="Button" x:Key="DashboardButton">
@@ -63,6 +62,46 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <Style TargetType="ListViewItem">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#E0E0E0"/>
+            <Setter Property="Padding" Value="10,8"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListViewItem">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="{TemplateBinding Padding}"
+                                SnapsToDevicePixels="True">
+                            <GridViewRowPresenter/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#3E3E3E"/>
+                </Trigger>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="#3E3E3E"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style TargetType="GridViewColumnHeader">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#AAAAAA"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="BorderThickness" Value="0,0,0,2"/>
+            <Setter Property="BorderBrush" Value="#444444"/>
+            <Setter Property="Padding" Value="10,8"/>
+        </Style>
+
     </Window.Resources>
 
     <Grid Margin="25">
@@ -73,13 +112,8 @@
         </Grid.RowDefinitions>
 
         <StackPanel Grid.Row="0" Margin="0,0,0,20">
-            <TextBlock Text="AI VISION DASHBOARD" 
-                       FontSize="24" 
-                       FontWeight="SemiBold" 
-                       Foreground="White"/>
-            <TextBlock Text="Mango Quality Assessment Model" 
-                       FontSize="14" 
-                       Foreground="#999999"/>
+            <TextBlock Text="AI VISION DASHBOARD" FontSize="24" FontWeight="SemiBold" Foreground="White"/>
+            <TextBlock Text="Mango Quality Assessment Model" FontSize="14" Foreground="#999999"/>
         </StackPanel>
 
         <Grid Grid.Row="1">
@@ -107,44 +141,50 @@
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
 
                     <TextBlock Grid.Row="0" Text="ANALYSIS RESULT" Style="{StaticResource PanelTitle}"/>
 
-                    <StackPanel Grid.Row="1" VerticalAlignment="Center">
-                        <TextBlock Text="CLASSIFICATION" 
-                                   FontSize="14" 
-                                   FontWeight="SemiBold" 
-                                   Foreground="#999999"
-                                   Margin="0,0,0,5"/>
-
-                        <TextBlock x:Name="ResultTextBlock" 
-                                   Text="---" 
-                                   FontSize="32" 
-                                   FontWeight="Bold" 
-                                   Foreground="#0091FF" TextWrapping="Wrap"
-                                   Margin="0,0,0,25"/>
-
-                        <TextBlock Text="CONFIDENCE SCORE" 
-                                   FontSize="14" 
-                                   FontWeight="SemiBold" 
-                                   Foreground="#999999"
-                                   Margin="0,0,0,5"/>
-
-                        <TextBlock x:Name="ConfidenceTextBlock" 
-                                   Text="---" 
-                                   FontSize="32" 
-                                   FontWeight="Bold" 
-                                   Foreground="#2ECC71"/>
+                    <StackPanel Grid.Row="1" VerticalAlignment="Top">
+                        <TextBlock Text="CLASSIFICATION" FontSize="14" FontWeight="SemiBold" Foreground="#999999" Margin="0,0,0,5"/>
+                        <TextBlock x:Name="ResultTextBlock" Text="---" FontSize="32" FontWeight="Bold" Foreground="#0091FF" TextWrapping="Wrap" Margin="0,0,0,10"/>
+                        <TextBlock Text="CONFIDENCE SCORE" FontSize="14" FontWeight="SemiBold" Foreground="#999999" Margin="0,0,0,5"/>
+                        <TextBlock x:Name="ConfidenceTextBlock" Text="---" FontSize="32" FontWeight="Bold" Foreground="#2ECC71"/>
                     </StackPanel>
+
+                    <Grid Grid.Row="2" Margin="0,20,0,0">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" Text="ALL SCORES" FontSize="14" FontWeight="SemiBold" Foreground="#999999" Margin="0,0,0,5"/>
+
+                        <ListView Grid.Row="1" 
+                                  x:Name="FullResultsListView"
+                                  Background="Transparent"
+                                  BorderThickness="0">
+                            <ListView.View>
+                                <GridView>
+                                    <GridViewColumn Header="CLASS" 
+                                                    DisplayMemberBinding="{Binding ClassName}" 
+                                                    Width="160"/>
+                                    <GridViewColumn Header="CONFIDENCE" 
+                                                    DisplayMemberBinding="{Binding Confidence, StringFormat='{}{0:P2}'}"/>
+                                </GridView>
+                            </ListView.View>
+                        </ListView>
+                    </Grid>
                 </Grid>
             </Border>
         </Grid>
 
         <Button Grid.Row="2" 
                 x:Name="LoadImageButton" 
-                Content="LOAD IMAGE FOR ANALYSIS" Click="LoadImageButton_Click" 
+                Content="LOAD IMAGE FOR ANALYSIS"
+                Click="LoadImageButton_Click" 
                 HorizontalAlignment="Stretch"
                 Margin="0,20,0,0"
                 Style="{StaticResource DashboardButton}"/>
