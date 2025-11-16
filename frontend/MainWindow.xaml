@@ -125,14 +125,12 @@
                         <TextBlock x:Name="FarmEnvTextBlock" Text="...로딩 중..." FontSize="16" LineHeight="24" Foreground="White"/>
                     </StackPanel>
                 </Border>
-
                 <Border Grid.Column="1" Style="{StaticResource InfoPanel}" Margin="5,0,5,0">
                     <StackPanel>
                         <TextBlock Text="현재 날씨 (외부)" Style="{StaticResource PanelTitle}"/>
                         <TextBlock x:Name="WeatherTextBlock" Text="...로딩 중..." FontSize="16" LineHeight="24" Foreground="White"/>
                     </StackPanel>
                 </Border>
-
                 <Border Grid.Column="2" Style="{StaticResource InfoPanel}" Margin="10,0,0,0">
                     <StackPanel>
                         <TextBlock Text="제철/시즌 정보" Style="{StaticResource PanelTitle}"/>
@@ -157,6 +155,7 @@
                         <Border Grid.Row="1" Background="#1E1E1E" CornerRadius="3">
                             <Image x:Name="SourceImage" Stretch="Uniform" />
                         </Border>
+                        <Canvas x:Name="DetectionCanvas" Grid.Row="1" />
                     </Grid>
                 </Border>
 
@@ -165,17 +164,41 @@
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*"/>
                         </Grid.RowDefinitions>
+
                         <TextBlock Grid.Row="0" Text="ANALYSIS RESULT" Style="{StaticResource PanelTitle}"/>
+
                         <StackPanel Grid.Row="1" VerticalAlignment="Top">
-                            <TextBlock Text="CLASSIFICATION" FontSize="14" FontWeight="SemiBold" Foreground="#999999" Margin="0,0,0,5"/>
-                            <TextBlock x:Name="ResultTextBlock" Text="---" FontSize="32" FontWeight="Bold" Foreground="#0091FF" TextWrapping="Wrap" Margin="0,0,0,10"/>
+                            <TextBlock Text="DETECTED OBJECT" FontSize="14" FontWeight="SemiBold" Foreground="#999999" Margin="0,0,0,5"/>
+                            <TextBlock x:Name="DetectionResultTextBlock" Text="---" FontSize="28" FontWeight="Bold" Foreground="#FFA500" TextWrapping="Wrap" Margin="0,0,0,10"/>
+
+                            <TextBlock Text="ESTIMATED WEIGHT (SIZE)" FontSize="14" FontWeight="SemiBold" Foreground="#999999" Margin="0,0,0,5"/>
+                            <TextBlock x:Name="DetectedSizeTextBlock" Text="---" FontSize="24" FontWeight="Bold" Foreground="#E0E0E0" TextWrapping="Wrap" Margin="0,0,0,10"/>
+
+                            <TextBlock Text="CLASSIFICATION (RIPENESS)" FontSize="14" FontWeight="SemiBold" Foreground="#999999" Margin="0,0,0,5"/>
+                            <TextBlock x:Name="RipenessResultTextBlock" Text="---" FontSize="32" FontWeight="Bold" Foreground="#0091FF" TextWrapping="Wrap" Margin="0,0,0,10"/>
+
                             <TextBlock Text="CONFIDENCE SCORE" FontSize="14" FontWeight="SemiBold" Foreground="#999999" Margin="0,0,0,5"/>
                             <TextBlock x:Name="ConfidenceTextBlock" Text="---" FontSize="32" FontWeight="Bold" Foreground="#2ECC71"/>
                         </StackPanel>
 
-                        <Grid Grid.Row="2" Margin="0,20,0,0">
+                        <StackPanel Grid.Row="2" Margin="0,15,0,0">
+                            <TextBlock Text="FINAL DECISION (최종 결론)" FontSize="14" FontWeight="SemiBold" Foreground="#999999" Margin="0,0,0,5"/>
+                            <Border Background="#333333" CornerRadius="4" Padding="10" MinHeight="40">
+                                <TextBlock x:Name="FinalDecisionTextBlock" 
+                                           Text="---" 
+                                           FontSize="28" 
+                                           FontWeight="Bold" 
+                                           Foreground="White" 
+                                           TextWrapping="Wrap" 
+                                           HorizontalAlignment="Center" 
+                                           VerticalAlignment="Center"/>
+                            </Border>
+                        </StackPanel>
+
+                        <Grid Grid.Row="3" Margin="0,20,0,0">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="*"/>
@@ -183,7 +206,7 @@
                                 <RowDefinition Height="*"/>
                             </Grid.RowDefinitions>
 
-                            <TextBlock Grid.Row="0" Text="ALL SCORES" FontSize="14" FontWeight="SemiBold" Foreground="#999999" Margin="0,0,0,5"/>
+                            <TextBlock Grid.Row="0" Text="ALL RIPENESS SCORES" FontSize="14" FontWeight="SemiBold" Foreground="#999999" Margin="0,0,0,5"/>
                             <ListView Grid.Row="1" x:Name="FullResultsListView" Background="Transparent" BorderThickness="0">
                                 <ListView.View>
                                     <GridView>
@@ -193,14 +216,15 @@
                                 </ListView.View>
                             </ListView>
 
-                            <TextBlock Grid.Row="2" Text="누적 분류 통계 (오늘)" 
-                                       Style="{StaticResource PanelTitle}" 
-                                       Margin="0,15,0,0"/>
-                            <TextBlock Grid.Row="3" x:Name="CumulativeStatsTextBlock" 
-                                       Text="...통계 로딩 중..." 
+                            <TextBlock Grid.Row="2" Text="DETECTED DEFECTS" Style="{StaticResource PanelTitle}" Margin="0,15,0,5"/>
+
+                            <TextBlock Grid.Row="3" x:Name="DefectResultsTextBlock" 
+                                       Text="...결함 로딩 중..." 
                                        FontSize="14" 
                                        LineHeight="20" 
-                                       Margin="5,0,0,0"/>
+                                       Margin="5,0,0,0" 
+                                       Foreground="White" 
+                                       TextWrapping="Wrap"/>
                         </Grid>
                     </Grid>
                 </Border>
