@@ -99,6 +99,67 @@
             </Style.Triggers>
         </Style>
 
+        <Style x:Key="HistoryListViewItemStyle" TargetType="ListViewItem" BasedOn="{StaticResource {x:Type ListViewItem}}">
+            <Setter Property="Padding" Value="10,12"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListViewItem">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="{TemplateBinding Padding}"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#007ACC" />
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#3E3E3E" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="TabControl">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+        </Style>
+        <Style TargetType="TabItem">
+            <Setter Property="Background" Value="#2D2D2D"/>
+            <Setter Property="Foreground" Value="#AAAAAA"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="12,8"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabItem">
+                        <Border x:Name="Border" 
+                                Background="{TemplateBinding Background}" 
+                                BorderBrush="#444444" 
+                                BorderThickness="1,1,1,0" 
+                                CornerRadius="4,4,0,0"
+                                Margin="0,0,2,0">
+                            <ContentPresenter ContentSource="Header" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="{TemplateBinding Padding}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Border" Property="Background" Value="#3E3E3E"/>
+                                <Setter Property="Foreground" Value="White"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Border" Property="Background" Value="#444444"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style TargetType="GridViewColumnHeader">
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="Foreground" Value="#AAAAAA" />
@@ -295,25 +356,62 @@
                                 </Border>
                             </StackPanel>
 
-                            <Grid Grid.Row="3" Margin="0,20,0,0">
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="*" />
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                </Grid.RowDefinitions>
-                                <TextBlock Grid.Row="0" Text="모든 익음 점수" FontSize="14" FontWeight="SemiBold" Foreground="#999999" Margin="0,0,0,5" />
-                                <ListView Grid.Row="1" x:Name="FullResultsListView" Background="Transparent" BorderThickness="0" MinHeight="120">
-                                    <ListView.View>
-                                        <GridView>
-                                            <GridViewColumn Header="클래스" DisplayMemberBinding="{Binding ClassName}" Width="160" />
-                                            <GridViewColumn Header="신뢰도" DisplayMemberBinding="{Binding Confidence, StringFormat='{}{0:P2}'}" />
-                                        </GridView>
-                                    </ListView.View>
-                                </ListView>
-                                <TextBlock Grid.Row="2" Text="탐지된 결함" Style="{StaticResource PanelTitle}" Margin="0,15,0,5" />
-                                <TextBlock Grid.Row="3" x:Name="DefectResultsTextBlock" Text="대기 중" FontSize="14" LineHeight="20" Margin="5,0,0,0" Foreground="White" TextWrapping="Wrap" />
-                            </Grid>
+                            <TabControl Grid.Row="3" Margin="0,20,0,0">
+
+                                <TabItem Header="현재 분석">
+                                    <Grid Margin="0,10,0,0">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="*" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+
+                                        <TextBlock Grid.Row="0" Text="모든 익음 점수" FontSize="14" FontWeight="SemiBold" Foreground="#999999" Margin="0,0,0,5" />
+                                        <ListView Grid.Row="1" x:Name="FullResultsListView" Background="Transparent" BorderThickness="0" MinHeight="100">
+                                            <ListView.View>
+                                                <GridView>
+                                                    <GridViewColumn Header="클래스" DisplayMemberBinding="{Binding ClassName}" Width="160" />
+                                                    <GridViewColumn Header="신뢰도" DisplayMemberBinding="{Binding Confidence, StringFormat='{}{0:P2}'}" />
+                                                </GridView>
+                                            </ListView.View>
+                                        </ListView>
+
+                                        <TextBlock Grid.Row="2" Text="탐지된 결함" Style="{StaticResource PanelTitle}" Margin="0,15,0,5" />
+                                        <TextBlock Grid.Row="3" x:Name="DefectResultsTextBlock" Text="대기 중" FontSize="14" LineHeight="20" Margin="5,0,0,0" Foreground="White" TextWrapping="Wrap" />
+                                    </Grid>
+                                </TabItem>
+
+                                <TabItem Header="분석 이력">
+                                    <ListView x:Name="HistoryListView" 
+                                              Margin="0,10,0,0"
+                                              Background="Transparent"
+                                              BorderThickness="0"
+                                              MinHeight="180"
+                                              SelectionChanged="HistoryListView_SelectionChanged"
+                                              ItemContainerStyle="{StaticResource HistoryListViewItemStyle}">
+                                        <ListView.ItemTemplate>
+                                            <DataTemplate>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <Border Grid.Column="0" Width="60" Height="60" CornerRadius="3" Margin="0,0,10,0">
+                                                        <Image Source="{Binding Thumbnail}" Stretch="UniformToFill"/>
+                                                    </Border>
+                                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding FileName}" FontWeight="SemiBold" FontSize="14" Foreground="White"/>
+                                                        <TextBlock Text="{Binding FinalDecisionText}" FontSize="12" Foreground="{Binding FinalDecisionBrush}"/>
+                                                    </StackPanel>
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ListView.ItemTemplate>
+                                    </ListView>
+                                </TabItem>
+
+                            </TabControl>
+
                         </Grid>
                     </ScrollViewer>
                 </Border>
