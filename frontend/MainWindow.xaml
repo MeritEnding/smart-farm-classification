@@ -70,6 +70,30 @@
             </Setter>
         </Style>
 
+        <Style x:Key="SecondaryButton" TargetType="Button" BasedOn="{StaticResource DashboardButton}">
+            <Setter Property="Background" Value="#444444" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="4">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#555555" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#333333" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style TargetType="ListViewItem">
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="Foreground" Value="#E0E0E0" />
@@ -418,13 +442,23 @@
             </Grid>
         </Grid>
 
-        <Button Grid.Row="2"
-                x:Name="LoadImageButton"
-                Content="분석할 이미지 불러오기"
-                Click="LoadImageButton_Click"
-                HorizontalAlignment="Stretch"
-                Margin="0,20,0,0"
-                Style="{StaticResource DashboardButton}" />
+        <StackPanel Grid.Row="2" 
+                    Orientation="Horizontal" 
+                    HorizontalAlignment="Right" 
+                    Margin="0,20,0,0">
+
+            <Button x:Name="ResetButton"
+                    Content="초기화"
+                    Click="ResetButton_Click"
+                    Style="{StaticResource SecondaryButton}"
+                    Margin="0,0,10,0" />
+
+            <Button x:Name="LoadImageButton"
+                    Content="이미지 불러오기"
+                    Click="LoadImageButton_Click"
+                    Style="{StaticResource DashboardButton}" Cursor="Hand" />
+
+        </StackPanel>
 
     </Grid>
 </Window>
