@@ -758,20 +758,20 @@ namespace MangoClassifierWPF
                     {
                         var output = results.First().AsTensor<float>();
 
-                        // Softmax 함수를 다시 호출하여 백분율 확률 계산
-                        var probabilities = Softmax(output.ToArray());
+                        // [ ★ 수정됨 ] 모델 출력을 이미 확률로 간주합니다.
+                        // C#에서 Softmax 함수를 호출하지 않습니다.
+                        var probabilities = output.ToArray();
 
                         var allScores = new List<PredictionScore>();
                         for (int i = 0; i < probabilities.Length; i++)
                         {
                             string englishName = _classificationClassNames[i];
-                            // (방어 코드) 맵에 키가 없으면 영어 이름 원본을 반환
                             string koreanName = _translationMap.GetValueOrDefault(englishName, englishName);
 
                             allScores.Add(new PredictionScore
                             {
                                 ClassName = koreanName,
-                                Confidence = probabilities[i] // 실제 확률
+                                Confidence = probabilities[i] // 모델 원본 확률
                             });
                         }
 
@@ -781,6 +781,7 @@ namespace MangoClassifierWPF
                         string englishTopClass = _classificationClassNames[maxIndex];
                         string koreanTopClass = _translationMap.GetValueOrDefault(englishTopClass, englishTopClass);
 
+                        // [ ★ 수정됨 ] TopConfidence는 이제 모델의 원본 확률입니다.
                         return (koreanTopClass, englishTopClass, maxConfidence, allScores);
                     }
                 }
