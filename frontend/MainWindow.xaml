@@ -5,232 +5,385 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:MangoClassifierWPF"
         mc:Ignorable="d"
-        Title="AI Vision Dashboard | Mango Quality Assessment" Height="850" Width="1000"
+        Title="AI Vision Dashboard | Mango Quality Assessment"
+        Height="850"
+        Width="1000"
         WindowStartupLocation="CenterScreen"
         Background="#1E1E1E">
 
     <Window.Resources>
+
+        <!-- Global control text rendering -->
         <Style TargetType="Control">
-            <Setter Property="TextOptions.TextFormattingMode" Value="Display"/>
-            <Setter Property="TextOptions.TextRenderingMode" Value="ClearType"/>
+            <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
+            <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
         </Style>
+
+        <!-- Default TextBlock style -->
         <Style TargetType="TextBlock">
-            <Setter Property="TextOptions.TextFormattingMode" Value="Display"/>
-            <Setter Property="TextOptions.TextRenderingMode" Value="ClearType"/>
-            <Setter Property="FontFamily" Value="Segoe UI"/>
-            <Setter Property="Foreground" Value="#E0E0E0"/>
+            <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
+            <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
+            <Setter Property="FontFamily" Value="Segoe UI" />
+            <Setter Property="Foreground" Value="#E0E0E0" />
         </Style>
-        <Style TargetType="Border" x:Key="InfoPanel">
-            <Setter Property="Background" Value="#2D2D2D"/>
-            <Setter Property="CornerRadius" Value="4"/>
-            <Setter Property="BorderBrush" Value="#444444"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Padding" Value="15"/>
+
+        <!-- Info Panel -->
+        <Style x:Key="InfoPanel" TargetType="Border">
+            <Setter Property="Background" Value="#2D2D2D" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="BorderBrush" Value="#444444" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="15" />
         </Style>
-        <Style TargetType="TextBlock" x:Key="PanelTitle">
-            <Setter Property="FontSize" Value="12"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Foreground" Value="#AAAAAA"/>
-            <Setter Property="Margin" Value="0,0,0,10"/>
+
+        <!-- Panel Title -->
+        <Style x:Key="PanelTitle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="#AAAAAA" />
+            <Setter Property="Margin" Value="0,0,0,10" />
         </Style>
-        <Style TargetType="Button" x:Key="DashboardButton">
-            <Setter Property="Background" Value="#007ACC"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding" Value="15, 12"/>
-            <Setter Property="FontSize" Value="14"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Cursor" Value="Hand"/>
+
+        <!-- Dashboard Button -->
+        <Style x:Key="DashboardButton" TargetType="Button">
+            <Setter Property="Background" Value="#007ACC" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="15,12" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Cursor" Value="Hand" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="border" Background="{TemplateBinding Background}" CornerRadius="4">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        <Border x:Name="border"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="4">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="border" Property="Background" Value="#005A9E"/>
+                                <Setter TargetName="border" Property="Background" Value="#005A9E" />
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="border" Property="Background" Value="#003D6A"/>
+                                <Setter TargetName="border" Property="Background" Value="#003D6A" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <!-- ListViewItem Style -->
         <Style TargetType="ListViewItem">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="Foreground" Value="#E0E0E0"/>
-            <Setter Property="Padding" Value="10,8"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="#E0E0E0" />
+            <Setter Property="Padding" Value="10,8" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ListViewItem">
-                        <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" Padding="{TemplateBinding Padding}" SnapsToDevicePixels="True">
-                            <GridViewRowPresenter/>
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="{TemplateBinding Padding}"
+                                SnapsToDevicePixels="True">
+                            <GridViewRowPresenter />
                         </Border>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#3E3E3E"/>
+                    <Setter Property="Background" Value="#3E3E3E" />
                 </Trigger>
                 <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Background" Value="#3E3E3E"/>
+                    <Setter Property="Background" Value="#3E3E3E" />
                 </Trigger>
             </Style.Triggers>
         </Style>
+
+        <!-- GridView Header -->
         <Style TargetType="GridViewColumnHeader">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="Foreground" Value="#AAAAAA"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="FontSize" Value="12"/>
-            <Setter Property="BorderThickness" Value="0,0,0,2"/>
-            <Setter Property="BorderBrush" Value="#444444"/>
-            <Setter Property="Padding" Value="10,8"/>
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="#AAAAAA" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="BorderThickness" Value="0,0,0,2" />
+            <Setter Property="BorderBrush" Value="#444444" />
+            <Setter Property="Padding" Value="10,8" />
         </Style>
+
     </Window.Resources>
 
     <Grid Margin="25">
+
+        <!-- ===========================
+             HEADER
+        ============================ -->
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <StackPanel Grid.Row="0" Margin="0,0,0,20">
-            <TextBlock Text="AI VISION DASHBOARD" FontSize="24" FontWeight="SemiBold" Foreground="White"/>
-            <TextBlock Text="Mango Quality Assessment Model" FontSize="14" Foreground="#999999"/>
+            <TextBlock Text="AI VISION DASHBOARD"
+                       FontSize="24"
+                       FontWeight="SemiBold"
+                       Foreground="White" />
+            <TextBlock Text="Mango Quality Assessment Model"
+                       FontSize="14"
+                       Foreground="#999999" />
         </StackPanel>
 
+        <!-- ===========================
+             MAIN CONTENT
+        ============================ -->
         <Grid Grid.Row="1">
+
             <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
+            <!-- TOP INFO PANELS -->
             <Grid Grid.Row="0" Margin="0,0,0,10">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
 
+                <!-- Farm Environment -->
                 <Border Grid.Column="0" Style="{StaticResource InfoPanel}" Margin="0,0,10,0">
                     <StackPanel>
-                        <TextBlock Text="실시간 농장 환경 (내부)" Style="{StaticResource PanelTitle}"/>
-                        <TextBlock x:Name="FarmEnvTextBlock" Text="...로딩 중..." FontSize="16" LineHeight="24" Foreground="White"/>
+                        <TextBlock Text="실시간 농장 환경 (내부)" Style="{StaticResource PanelTitle}" />
+                        <TextBlock x:Name="FarmEnvTextBlock"
+                                   Text="...로딩 중..."
+                                   FontSize="16"
+                                   LineHeight="24"
+                                   Foreground="White" />
                     </StackPanel>
                 </Border>
+
+                <!-- Weather -->
                 <Border Grid.Column="1" Style="{StaticResource InfoPanel}" Margin="5,0,5,0">
                     <StackPanel>
-                        <TextBlock Text="현재 날씨 (외부)" Style="{StaticResource PanelTitle}"/>
-                        <TextBlock x:Name="WeatherTextBlock" Text="...로딩 중..." FontSize="16" LineHeight="24" Foreground="White"/>
+                        <TextBlock Text="현재 날씨 (외부)" Style="{StaticResource PanelTitle}" />
+                        <TextBlock x:Name="WeatherTextBlock"
+                                   Text="...로딩 중..."
+                                   FontSize="16"
+                                   LineHeight="24"
+                                   Foreground="White" />
                     </StackPanel>
                 </Border>
+
+                <!-- Season Info -->
                 <Border Grid.Column="2" Style="{StaticResource InfoPanel}" Margin="10,0,0,0">
                     <StackPanel>
-                        <TextBlock Text="제철/시즌 정보" Style="{StaticResource PanelTitle}"/>
-                        <TextBlock x:Name="SeasonInfoTextBlock" Text="...로딩 중..." FontSize="16" LineHeight="24" Foreground="White"/>
+                        <TextBlock Text="제철/시즌 정보" Style="{StaticResource PanelTitle}" />
+                        <TextBlock x:Name="SeasonInfoTextBlock"
+                                   Text="...로딩 중..."
+                                   FontSize="16"
+                                   LineHeight="24"
+                                   Foreground="White" />
                     </StackPanel>
                 </Border>
+
             </Grid>
 
+            <!-- IMAGE + RESULT PANELS -->
             <Grid Grid.Row="1" Margin="0,10,0,0">
+
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="3*"/>
-                    <ColumnDefinition Width="2*"/>
+                    <ColumnDefinition Width="3*" />
+                    <ColumnDefinition Width="2*" />
                 </Grid.ColumnDefinitions>
 
+                <!-- IMAGE PREVIEW -->
                 <Border Grid.Column="0" Style="{StaticResource InfoPanel}" Margin="0,0,10,0">
                     <Grid>
                         <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
-                        <TextBlock Grid.Row="0" Text="IMAGE PREVIEW" Style="{StaticResource PanelTitle}"/>
+
+                        <TextBlock Grid.Row="0" Text="IMAGE PREVIEW" Style="{StaticResource PanelTitle}" />
+
                         <Border Grid.Row="1" Background="#1E1E1E" CornerRadius="3">
                             <Image x:Name="SourceImage" Stretch="Uniform" />
                         </Border>
+
                         <Canvas x:Name="DetectionCanvas" Grid.Row="1" />
                     </Grid>
                 </Border>
 
+                <!-- RESULTS PANEL -->
                 <Border Grid.Column="1" Style="{StaticResource InfoPanel}" Margin="10,0,0,0">
-                    <Grid>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="*"/>
-                        </Grid.RowDefinitions>
 
-                        <TextBlock Grid.Row="0" Text="ANALYSIS RESULT" Style="{StaticResource PanelTitle}"/>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <Grid>
 
-                        <StackPanel Grid.Row="1" VerticalAlignment="Top">
-                            <TextBlock Text="DETECTED OBJECT" FontSize="14" FontWeight="SemiBold" Foreground="#999999" Margin="0,0,0,5"/>
-                            <TextBlock x:Name="DetectionResultTextBlock" Text="---" FontSize="28" FontWeight="Bold" Foreground="#FFA500" TextWrapping="Wrap" Margin="0,0,0,10"/>
-
-                            <TextBlock Text="ESTIMATED WEIGHT (SIZE)" FontSize="14" FontWeight="SemiBold" Foreground="#999999" Margin="0,0,0,5"/>
-                            <TextBlock x:Name="DetectedSizeTextBlock" Text="---" FontSize="24" FontWeight="Bold" Foreground="#E0E0E0" TextWrapping="Wrap" Margin="0,0,0,10"/>
-
-                            <TextBlock Text="CLASSIFICATION (RIPENESS)" FontSize="14" FontWeight="SemiBold" Foreground="#999999" Margin="0,0,0,5"/>
-                            <TextBlock x:Name="RipenessResultTextBlock" Text="---" FontSize="32" FontWeight="Bold" Foreground="#0091FF" TextWrapping="Wrap" Margin="0,0,0,10"/>
-
-                            <TextBlock Text="CONFIDENCE SCORE" FontSize="14" FontWeight="SemiBold" Foreground="#999999" Margin="0,0,0,5"/>
-                            <TextBlock x:Name="ConfidenceTextBlock" Text="---" FontSize="32" FontWeight="Bold" Foreground="#2ECC71"/>
-                        </StackPanel>
-
-                        <StackPanel Grid.Row="2" Margin="0,15,0,0">
-                            <TextBlock Text="FINAL DECISION (최종 결론)" FontSize="14" FontWeight="SemiBold" Foreground="#999999" Margin="0,0,0,5"/>
-                            <Border Background="#333333" CornerRadius="4" Padding="10" MinHeight="40">
-                                <TextBlock x:Name="FinalDecisionTextBlock" 
-                                           Text="---" 
-                                           FontSize="28" 
-                                           FontWeight="Bold" 
-                                           Foreground="White" 
-                                           TextWrapping="Wrap" 
-                                           HorizontalAlignment="Center" 
-                                           VerticalAlignment="Center"/>
-                            </Border>
-                        </StackPanel>
-
-                        <Grid Grid.Row="3" Margin="0,20,0,0">
                             <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="*"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="*"/>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
                             </Grid.RowDefinitions>
 
-                            <TextBlock Grid.Row="0" Text="ALL RIPENESS SCORES" FontSize="14" FontWeight="SemiBold" Foreground="#999999" Margin="0,0,0,5"/>
-                            <ListView Grid.Row="1" x:Name="FullResultsListView" Background="Transparent" BorderThickness="0">
-                                <ListView.View>
-                                    <GridView>
-                                        <GridViewColumn Header="CLASS" DisplayMemberBinding="{Binding ClassName}" Width="160"/>
-                                        <GridViewColumn Header="CONFIDENCE" DisplayMemberBinding="{Binding Confidence, StringFormat='{}{0:P2}'}"/>
-                                    </GridView>
-                                </ListView.View>
-                            </ListView>
+                            <TextBlock Grid.Row="0"
+                                       Text="ANALYSIS RESULT"
+                                       Style="{StaticResource PanelTitle}" />
 
-                            <TextBlock Grid.Row="2" Text="DETECTED DEFECTS" Style="{StaticResource PanelTitle}" Margin="0,15,0,5"/>
+                            <!-- MAIN RESULT STACK -->
+                            <StackPanel Grid.Row="1" VerticalAlignment="Top">
 
-                            <TextBlock Grid.Row="3" x:Name="DefectResultsTextBlock" 
-                                       Text="...결함 로딩 중..." 
-                                       FontSize="14" 
-                                       LineHeight="20" 
-                                       Margin="5,0,0,0" 
-                                       Foreground="White" 
-                                       TextWrapping="Wrap"/>
+                                <!-- DETECTED OBJECT -->
+                                <TextBlock Text="DETECTED OBJECT"
+                                           FontSize="14"
+                                           FontWeight="SemiBold"
+                                           Foreground="#999999"
+                                           Margin="0,0,0,5" />
+                                <TextBlock x:Name="DetectionResultTextBlock"
+                                           Text="---"
+                                           FontSize="28"
+                                           FontWeight="Bold"
+                                           Foreground="#FFA500"
+                                           TextWrapping="Wrap"
+                                           Margin="0,0,0,10" />
+
+                                <!-- SIZE -->
+                                <TextBlock Text="ESTIMATED WEIGHT (SIZE)"
+                                           FontSize="14"
+                                           FontWeight="SemiBold"
+                                           Foreground="#999999"
+                                           Margin="0,0,0,5" />
+                                <TextBlock x:Name="DetectedSizeTextBlock"
+                                           Text="---"
+                                           FontSize="24"
+                                           FontWeight="Bold"
+                                           Foreground="#E0E0E0"
+                                           TextWrapping="Wrap"
+                                           Margin="0,0,0,10" />
+
+                                <!-- RIPENESS -->
+                                <TextBlock Text="CLASSIFICATION (RIPENESS)"
+                                           FontSize="14"
+                                           FontWeight="SemiBold"
+                                           Foreground="#999999"
+                                           Margin="0,0,0,5" />
+                                <TextBlock x:Name="RipenessResultTextBlock"
+                                           Text="---"
+                                           FontSize="32"
+                                           FontWeight="Bold"
+                                           Foreground="#0091FF"
+                                           TextWrapping="Wrap"
+                                           Margin="0,0,0,10" />
+
+                                <!-- CONFIDENCE -->
+                                <TextBlock Text="CONFIDENCE SCORE"
+                                           FontSize="14"
+                                           FontWeight="SemiBold"
+                                           Foreground="#999999"
+                                           Margin="0,0,0,5" />
+                                <TextBlock x:Name="ConfidenceTextBlock"
+                                           Text="---"
+                                           FontSize="32"
+                                           FontWeight="Bold"
+                                           Foreground="#2ECC71" />
+
+                            </StackPanel>
+
+                            <!-- FINAL DECISION -->
+                            <StackPanel Grid.Row="2" Margin="0,15,0,0">
+                                <TextBlock Text="FINAL DECISION (최종 결론)"
+                                           FontSize="14"
+                                           FontWeight="SemiBold"
+                                           Foreground="#999999"
+                                           Margin="0,0,0,5" />
+
+                                <Border Background="#2ECC71"
+                                        CornerRadius="4"
+                                        Padding="10"
+                                        MinHeight="40">
+                                    <TextBlock x:Name="FinalDecisionTextBlock"
+                                               Text="---"
+                                               FontSize="28"
+                                               FontWeight="Bold"
+                                               Foreground="White"
+                                               TextWrapping="Wrap"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center" />
+                                </Border>
+                            </StackPanel>
+
+                            <!-- FULL RESULTS -->
+                            <Grid Grid.Row="3" Margin="0,20,0,0">
+
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Grid.Row="0"
+                                           Text="ALL RIPENESS SCORES"
+                                           FontSize="14"
+                                           FontWeight="SemiBold"
+                                           Foreground="#999999"
+                                           Margin="0,0,0,5" />
+
+                                <ListView Grid.Row="1"
+                                          x:Name="FullResultsListView"
+                                          Background="Transparent"
+                                          BorderThickness="0"
+                                          MinHeight="120">
+                                    <ListView.View>
+                                        <GridView>
+                                            <GridViewColumn Header="CLASS"
+                                                            DisplayMemberBinding="{Binding ClassName}"
+                                                            Width="160" />
+                                            <GridViewColumn Header="CONFIDENCE"
+                                                            DisplayMemberBinding="{Binding Confidence, StringFormat='{}{0:P2}'}" />
+                                        </GridView>
+                                    </ListView.View>
+                                </ListView>
+
+                                <TextBlock Grid.Row="2"
+                                           Text="DETECTED DEFECTS"
+                                           Style="{StaticResource PanelTitle}"
+                                           Margin="0,15,0,5" />
+
+                                <TextBlock Grid.Row="3"
+                                           x:Name="DefectResultsTextBlock"
+                                           Text="...결함 로딩 중..."
+                                           FontSize="14"
+                                           LineHeight="20"
+                                           Margin="5,0,0,0"
+                                           Foreground="White"
+                                           TextWrapping="Wrap" />
+
+                            </Grid>
                         </Grid>
-                    </Grid>
+                    </ScrollViewer>
+
                 </Border>
+
             </Grid>
         </Grid>
 
-        <Button Grid.Row="2" x:Name="LoadImageButton" Content="LOAD IMAGE FOR ANALYSIS" Click="LoadImageButton_Click" HorizontalAlignment="Stretch" Margin="0,20,0,0" Style="{StaticResource DashboardButton}"/>
+        <!-- FOOTER: LOAD IMAGE BUTTON -->
+        <Button Grid.Row="2"
+                x:Name="LoadImageButton"
+                Content="LOAD IMAGE FOR ANALYSIS"
+                Click="LoadImageButton_Click"
+                HorizontalAlignment="Stretch"
+                Margin="0,20,0,0"
+                Style="{StaticResource DashboardButton}" />
+
     </Grid>
 </Window>
