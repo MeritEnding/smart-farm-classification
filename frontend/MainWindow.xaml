@@ -217,16 +217,45 @@
                             </Grid.RowDefinitions>
                             <TextBlock Grid.Row="0" Text="분석 결과" Style="{StaticResource PanelTitle}" />
 
-                            <StackPanel Grid.Row="1" VerticalAlignment="Top">
-                                <TextBlock Text="탐지된 객체" FontSize="14" FontWeight="SemiBold" Foreground="#999999" Margin="0,0,0,5" />
-                                <TextBlock x:Name="DetectionResultTextBlock" Text="---" FontSize="28" FontWeight="Bold" Foreground="#FFA500" TextWrapping="Wrap" Margin="0,0,0,10" />
-                                <TextBlock Text="추정 크기 (무게)" FontSize="14" FontWeight="SemiBold" Foreground="#999999" Margin="0,0,0,5" />
-                                <TextBlock x:Name="DetectedSizeTextBlock" Text="---" FontSize="24" FontWeight="Bold" Foreground="#E0E0E0" TextWrapping="Wrap" Margin="0,0,0,10" />
-                                <TextBlock Text="분류 (익음 정도)" FontSize="14" FontWeight="SemiBold" Foreground="#999999" Margin="0,0,0,5" />
-                                <TextBlock x:Name="RipenessResultTextBlock" Text="---" FontSize="32" FontWeight="Bold" Foreground="#0091FF" TextWrapping="Wrap" Margin="0,0,0,10" />
-                                <TextBlock Text="신뢰도 점수" FontSize="14" FontWeight="SemiBold" Foreground="#999999" Margin="0,0,0,5" />
-                                <TextBlock x:Name="ConfidenceTextBlock" Text="---" FontSize="32" FontWeight="Bold" Foreground="#2ECC71" />
-                            </StackPanel>
+                            <Grid Grid.Row="1" VerticalAlignment="Top">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,5,10">
+                                    <TextBlock Text="탐지된 객체" FontSize="14" FontWeight="SemiBold" Foreground="#999999" Margin="0,0,0,5" />
+                                    <Border Background="#3E3E3E" CornerRadius="4" Padding="10" MinHeight="80">
+                                        <TextBlock x:Name="DetectionResultTextBlock" Text="---" FontSize="28" FontWeight="Bold" Foreground="#FFA500" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                    </Border>
+                                </StackPanel>
+
+                                <StackPanel Grid.Row="0" Grid.Column="1" Margin="5,0,0,10">
+                                    <TextBlock Text="추정 크기 (무게)" FontSize="14" FontWeight="SemiBold" Foreground="#999999" Margin="0,0,0,5" />
+                                    <Border Background="#3E3E3E" CornerRadius="4" Padding="10" MinHeight="80">
+                                        <TextBlock x:Name="DetectedSizeTextBlock" Text="---" FontSize="24" FontWeight="Bold" Foreground="#E0E0E0" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                    </Border>
+                                </StackPanel>
+
+                                <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,5,10">
+                                    <TextBlock Text="분류 (익음 정도)" FontSize="14" FontWeight="SemiBold" Foreground="#999999" Margin="0,0,0,5" />
+                                    <Border Background="#3E3E3E" CornerRadius="4" Padding="10" MinHeight="80">
+                                        <TextBlock x:Name="RipenessResultTextBlock" Text="---" FontSize="32" FontWeight="Bold" Foreground="#0091FF" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                    </Border>
+                                </StackPanel>
+
+                                <StackPanel Grid.Row="1" Grid.Column="1" Margin="5,0,0,10">
+                                    <TextBlock Text="신뢰도 점수" FontSize="14" FontWeight="SemiBold" Foreground="#999999" Margin="0,0,0,5" />
+                                    <Border Background="#3E3E3E" CornerRadius="4" Padding="10" MinHeight="80">
+                                        <TextBlock x:Name="ConfidenceTextBlock" Text="---" FontSize="32" FontWeight="Bold" Foreground="#2ECC71" VerticalAlignment="Center" />
+                                    </Border>
+                                </StackPanel>
+
+                            </Grid>
 
                             <StackPanel Grid.Row="2" Margin="0,15,0,0">
                                 <TextBlock Text="최종 결론" FontSize="14" FontWeight="SemiBold" Foreground="#999999" Margin="0,0,0,5" />
