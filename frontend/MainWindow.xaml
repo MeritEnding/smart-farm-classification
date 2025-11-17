@@ -12,6 +12,7 @@
         Background="#1E1E1E">
 
     <Window.Resources>
+
         <Style TargetType="Control">
             <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
             <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
@@ -123,7 +124,7 @@
                        FontSize="24"
                        FontWeight="SemiBold"
                        Foreground="White" />
-            <TextBlock Text="Mango Quality Assessment Model"
+            <TextBlock Text="망고 품질 평가 모델"
                        FontSize="14"
                        Foreground="#999999" />
         </StackPanel>
@@ -191,7 +192,7 @@
                             <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
 
-                        <TextBlock Grid.Row="0" Text="IMAGE PREVIEW" Style="{StaticResource PanelTitle}" />
+                        <TextBlock Grid.Row="0" Text="이미지 미리보기" Style="{StaticResource PanelTitle}" />
 
                         <Border Grid.Row="1" Background="#1E1E1E" CornerRadius="3">
                             <Viewbox Stretch="Uniform">
@@ -214,21 +215,21 @@
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="*" />
                             </Grid.RowDefinitions>
-                            <TextBlock Grid.Row="0" Text="ANALYSIS RESULT" Style="{StaticResource PanelTitle}" />
+                            <TextBlock Grid.Row="0" Text="분석 결과" Style="{StaticResource PanelTitle}" />
 
                             <StackPanel Grid.Row="1" VerticalAlignment="Top">
-                                <TextBlock Text="DETECTED OBJECT" FontSize="14" FontWeight="SemiBold" Foreground="#999999" Margin="0,0,0,5" />
+                                <TextBlock Text="탐지된 객체" FontSize="14" FontWeight="SemiBold" Foreground="#999999" Margin="0,0,0,5" />
                                 <TextBlock x:Name="DetectionResultTextBlock" Text="---" FontSize="28" FontWeight="Bold" Foreground="#FFA500" TextWrapping="Wrap" Margin="0,0,0,10" />
-                                <TextBlock Text="ESTIMATED WEIGHT (SIZE)" FontSize="14" FontWeight="SemiBold" Foreground="#999999" Margin="0,0,0,5" />
+                                <TextBlock Text="추정 크기 (무게)" FontSize="14" FontWeight="SemiBold" Foreground="#999999" Margin="0,0,0,5" />
                                 <TextBlock x:Name="DetectedSizeTextBlock" Text="---" FontSize="24" FontWeight="Bold" Foreground="#E0E0E0" TextWrapping="Wrap" Margin="0,0,0,10" />
-                                <TextBlock Text="CLASSIFICATION (RIPENESS)" FontSize="14" FontWeight="SemiBold" Foreground="#999999" Margin="0,0,0,5" />
+                                <TextBlock Text="분류 (익음 정도)" FontSize="14" FontWeight="SemiBold" Foreground="#999999" Margin="0,0,0,5" />
                                 <TextBlock x:Name="RipenessResultTextBlock" Text="---" FontSize="32" FontWeight="Bold" Foreground="#0091FF" TextWrapping="Wrap" Margin="0,0,0,10" />
-                                <TextBlock Text="CONFIDENCE SCORE" FontSize="14" FontWeight="SemiBold" Foreground="#999999" Margin="0,0,0,5" />
+                                <TextBlock Text="신뢰도 점수" FontSize="14" FontWeight="SemiBold" Foreground="#999999" Margin="0,0,0,5" />
                                 <TextBlock x:Name="ConfidenceTextBlock" Text="---" FontSize="32" FontWeight="Bold" Foreground="#2ECC71" />
                             </StackPanel>
 
                             <StackPanel Grid.Row="2" Margin="0,15,0,0">
-                                <TextBlock Text="FINAL DECISION (최종 결론)" FontSize="14" FontWeight="SemiBold" Foreground="#999999" Margin="0,0,0,5" />
+                                <TextBlock Text="최종 결론" FontSize="14" FontWeight="SemiBold" Foreground="#999999" Margin="0,0,0,5" />
                                 <Border Background="#2ECC71" CornerRadius="4" Padding="10" MinHeight="40">
                                     <TextBlock x:Name="FinalDecisionTextBlock" Text="---" FontSize="28" FontWeight="Bold" Foreground="White" TextWrapping="Wrap" HorizontalAlignment="Center" VerticalAlignment="Center" />
                                 </Border>
@@ -241,16 +242,16 @@
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
-                                <TextBlock Grid.Row="0" Text="ALL RIPENESS SCORES" FontSize="14" FontWeight="SemiBold" Foreground="#999999" Margin="0,0,0,5" />
+                                <TextBlock Grid.Row="0" Text="모든 익음 점수" FontSize="14" FontWeight="SemiBold" Foreground="#999999" Margin="0,0,0,5" />
                                 <ListView Grid.Row="1" x:Name="FullResultsListView" Background="Transparent" BorderThickness="0" MinHeight="120">
                                     <ListView.View>
                                         <GridView>
-                                            <GridViewColumn Header="CLASS" DisplayMemberBinding="{Binding ClassName}" Width="160" />
-                                            <GridViewColumn Header="CONFIDENCE" DisplayMemberBinding="{Binding Confidence, StringFormat='{}{0:P2}'}" />
+                                            <GridViewColumn Header="클래스" DisplayMemberBinding="{Binding ClassName}" Width="160" />
+                                            <GridViewColumn Header="신뢰도" DisplayMemberBinding="{Binding Confidence, StringFormat='{}{0:P2}'}" />
                                         </GridView>
                                     </ListView.View>
                                 </ListView>
-                                <TextBlock Grid.Row="2" Text="DETECTED DEFECTS" Style="{StaticResource PanelTitle}" Margin="0,15,0,5" />
+                                <TextBlock Grid.Row="2" Text="탐지된 결함" Style="{StaticResource PanelTitle}" Margin="0,15,0,5" />
                                 <TextBlock Grid.Row="3" x:Name="DefectResultsTextBlock" Text="...결함 로딩 중..." FontSize="14" LineHeight="20" Margin="5,0,0,0" Foreground="White" TextWrapping="Wrap" />
                             </Grid>
                         </Grid>
@@ -261,7 +262,7 @@
 
         <Button Grid.Row="2"
                 x:Name="LoadImageButton"
-                Content="LOAD IMAGE FOR ANALYSIS"
+                Content="분석할 이미지 불러오기"
                 Click="LoadImageButton_Click"
                 HorizontalAlignment="Stretch"
                 Margin="0,20,0,0"
