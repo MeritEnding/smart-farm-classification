@@ -194,14 +194,45 @@
 
                         <TextBlock Grid.Row="0" Text="이미지 미리보기" Style="{StaticResource PanelTitle}" />
 
-                        <Border Grid.Row="1" Background="#1E1E1E" CornerRadius="3">
-                            <Viewbox Stretch="Uniform">
-                                <Grid x:Name="PreviewGrid">
-                                    <Image x:Name="SourceImage" Stretch="Fill" />
-                                    <Canvas x:Name="DetectionCanvas" />
-                                </Grid>
-                            </Viewbox>
-                        </Border>
+                        <Grid Grid.Row="1">
+
+                            <Border x:Name="WelcomePanel"
+                                    Background="#1E1E1E" 
+                                    CornerRadius="3"
+                                    BorderBrush="#444444"
+                                    BorderThickness="1"
+                                    AllowDrop="True" 
+                                    DragEnter="WelcomePanel_DragEnter"
+                                    DragOver="WelcomePanel_DragOver"
+                                    Drop="WelcomePanel_Drop"
+                                    Visibility="Visible">
+                                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Opacity="0.6">
+                                    <TextBlock Text="📤" FontSize="60" HorizontalAlignment="Center" Margin="5" Foreground="#AAAAAA"/>
+                                    <TextBlock Text="분석할 이미지를 불러오세요" 
+                                               FontSize="18" 
+                                               FontWeight="SemiBold" 
+                                               Foreground="White" 
+                                               Margin="0,10,0,5"/>
+                                    <TextBlock Text="이미지를 이 곳에 드래그 앤 드롭하거나,&#x0a;하단의 '이미지 불러오기' 버튼을 클릭하세요." 
+                                               FontSize="14" 
+                                               Foreground="#AAAAAA" 
+                                               TextAlignment="Center"
+                                               LineHeight="20"/>
+                                </StackPanel>
+                            </Border>
+
+                            <Border x:Name="ImagePreviewPanel" 
+                                    Background="#1E1E1E" 
+                                    CornerRadius="3" 
+                                    Visibility="Collapsed">
+                                <Viewbox Stretch="Uniform">
+                                    <Grid x:Name="PreviewGrid">
+                                        <Image x:Name="SourceImage" Stretch="Fill" />
+                                        <Canvas x:Name="DetectionCanvas" />
+                                    </Grid>
+                                </Viewbox>
+                            </Border>
+                        </Grid>
 
                     </Grid>
                 </Border>
@@ -230,28 +261,28 @@
                                 <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,5,10">
                                     <TextBlock Text="탐지된 객체" FontSize="14" FontWeight="SemiBold" Foreground="#999999" Margin="0,0,0,5" />
                                     <Border Background="#3E3E3E" CornerRadius="4" Padding="10" MinHeight="80">
-                                        <TextBlock x:Name="DetectionResultTextBlock" Text="---" FontSize="28" FontWeight="Bold" Foreground="#FFA500" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                        <TextBlock x:Name="DetectionResultTextBlock" Text="모델 로드 중..." FontSize="28" FontWeight="Bold" Foreground="#FFA500" TextWrapping="Wrap" VerticalAlignment="Center" />
                                     </Border>
                                 </StackPanel>
 
                                 <StackPanel Grid.Row="0" Grid.Column="1" Margin="5,0,0,10">
                                     <TextBlock Text="추정 크기 (무게)" FontSize="14" FontWeight="SemiBold" Foreground="#999999" Margin="0,0,0,5" />
                                     <Border Background="#3E3E3E" CornerRadius="4" Padding="10" MinHeight="80">
-                                        <TextBlock x:Name="DetectedSizeTextBlock" Text="---" FontSize="24" FontWeight="Bold" Foreground="#E0E0E0" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                        <TextBlock x:Name="DetectedSizeTextBlock" Text="대기 중" FontSize="24" FontWeight="Bold" Foreground="#E0E0E0" TextWrapping="Wrap" VerticalAlignment="Center" />
                                     </Border>
                                 </StackPanel>
 
                                 <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,5,10">
                                     <TextBlock Text="분류 (익음 정도)" FontSize="14" FontWeight="SemiBold" Foreground="#999999" Margin="0,0,0,5" />
                                     <Border Background="#3E3E3E" CornerRadius="4" Padding="10" MinHeight="80">
-                                        <TextBlock x:Name="RipenessResultTextBlock" Text="---" FontSize="32" FontWeight="Bold" Foreground="#0091FF" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                        <TextBlock x:Name="RipenessResultTextBlock" Text="모델 로드 중..." FontSize="32" FontWeight="Bold" Foreground="#0091FF" TextWrapping="Wrap" VerticalAlignment="Center" />
                                     </Border>
                                 </StackPanel>
 
                                 <StackPanel Grid.Row="1" Grid.Column="1" Margin="5,0,0,10">
                                     <TextBlock Text="신뢰도 점수" FontSize="14" FontWeight="SemiBold" Foreground="#999999" Margin="0,0,0,5" />
                                     <Border Background="#3E3E3E" CornerRadius="4" Padding="10" MinHeight="80">
-                                        <TextBlock x:Name="ConfidenceTextBlock" Text="---" FontSize="32" FontWeight="Bold" Foreground="#2ECC71" VerticalAlignment="Center" />
+                                        <TextBlock x:Name="ConfidenceTextBlock" Text="대기 중" FontSize="32" FontWeight="Bold" Foreground="#2ECC71" VerticalAlignment="Center" />
                                     </Border>
                                 </StackPanel>
 
@@ -260,7 +291,7 @@
                             <StackPanel Grid.Row="2" Margin="0,15,0,0">
                                 <TextBlock Text="최종 결론" FontSize="14" FontWeight="SemiBold" Foreground="#999999" Margin="0,0,0,5" />
                                 <Border Background="#2ECC71" CornerRadius="4" Padding="10" MinHeight="40">
-                                    <TextBlock x:Name="FinalDecisionTextBlock" Text="---" FontSize="28" FontWeight="Bold" Foreground="White" TextWrapping="Wrap" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    <TextBlock x:Name="FinalDecisionTextBlock" Text="대기 중" FontSize="28" FontWeight="Bold" Foreground="White" TextWrapping="Wrap" HorizontalAlignment="Center" VerticalAlignment="Center" />
                                 </Border>
                             </StackPanel>
 
@@ -281,7 +312,7 @@
                                     </ListView.View>
                                 </ListView>
                                 <TextBlock Grid.Row="2" Text="탐지된 결함" Style="{StaticResource PanelTitle}" Margin="0,15,0,5" />
-                                <TextBlock Grid.Row="3" x:Name="DefectResultsTextBlock" Text="...결함 로딩 중..." FontSize="14" LineHeight="20" Margin="5,0,0,0" Foreground="White" TextWrapping="Wrap" />
+                                <TextBlock Grid.Row="3" x:Name="DefectResultsTextBlock" Text="대기 중" FontSize="14" LineHeight="20" Margin="5,0,0,0" Foreground="White" TextWrapping="Wrap" />
                             </Grid>
                         </Grid>
                     </ScrollViewer>
