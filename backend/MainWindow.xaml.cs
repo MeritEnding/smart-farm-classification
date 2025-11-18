@@ -16,7 +16,6 @@ using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 
-
 // SixLabors.ImageSharp.Rectangle을 사용하기 위해 (int Box)
 using Rectangle = SixLabors.ImageSharp.Rectangle;
 // SixLabors.ImageSharp.Point의 모호성을 해결하기 위해 별칭 사용
@@ -71,7 +70,6 @@ namespace MangoClassifierWPF
         private bool _isHistoryLoading = false;
 
         // --- 분류 모델 (best.onnx) 설정 ---
-        // (제공해주신 클래스 이름 및 번역 맵으로 적용됨)
         private readonly string[] _classificationClassNames = new string[]
         { "breaking-stage", "half-ripe-stage","un-healthy", "ripe", "ripe_with_consumable_disease", "unripe" };
         private readonly Dictionary<string, string> _translationMap = new Dictionary<string, string>
@@ -87,9 +85,21 @@ namespace MangoClassifierWPF
 
         // --- 탐지 모델 (detection.onnx - 망고 전체) 설정 ---
         private readonly string[] _detectionClassNames = new string[]
-        { "Mango", "Mango", "Mango", "Mango", "Mango", "Mango", "Mango", "Mango", "Mango", "Mango", "Mango", "Mango" };
+        { "Apple", "Banana", "Orange", "Mango", "Grape", "Guava", "Kiwi", "Lemon", "Litchi", "Pomegranate", "Strawberry", "Watermelon" };
         private readonly Dictionary<string, string> _detectionTranslationMap = new Dictionary<string, string>
-        { { "Mango", "망고" } };
+        {
+            {"Apple", "사과" },
+            {"Banana", "바나나" },
+            {"Orange","오렌지" },
+            {"Mango", "망고" },
+            {"Graph", "포도" },
+            {"Guava","구아바" },
+            {"Kiwi","키위" },
+            {"Lemon","레몬" },
+            {"Litchi","석류" },
+            {"Strawberry","스트로베리" },
+            {"Watermelon","수박" },
+        };
         private const int DetectionInputSize = 640;
 
         // --- 결함 탐지 모델 (defect_detection.onnx) 설정 ---
@@ -513,7 +523,7 @@ namespace MangoClassifierWPF
         private readonly Brush TEXT_COLOR = Brushes.White;
 
         // -----------------------------------------------------------------
-        // [ ★ 수정된 함수] 제공된 표의 규칙을 정확히 구현
+        // [ ★ 수정됨 ★ ] 님의 요청("과숙은 다 폐기")을 반영한 로직
         // -----------------------------------------------------------------
         private (string Decision, Brush TextColor, Brush BackgroundColor) GetFinalDecision(string englishRipeness, List<DetectionResult> defects, Rectangle mangoBox)
         {
@@ -529,15 +539,23 @@ namespace MangoClassifierWPF
                 return ($"판매 금지 ({_defectTranslationMap["scab"]} 검출)", TEXT_COLOR, REJECT_COLOR);
             }
 
-            // --- 규칙 2: "검은 반점(black-spot)"이 있으면 (scab은 없는 상태) 무조건 제한적 ---
+            // -----------------------------------------------------------------
+            // [ ★ 님의 요청 ★ ]
+            // --- 규칙 2: "과숙(un-healthy)"이면 무조건 판매 금지 ---
+            // -----------------------------------------------------------------
+            if (englishRipeness == "un-healthy")
+            {
+                return ("판매 금지 (과숙 판정)", TEXT_COLOR, REJECT_COLOR);
+            }
+
+            // --- 규칙 3: "검은 반점(black-spot)"이 있으면 (scab/과숙은 아닌 상태) 무조건 제한적 ---
             if (hasBlackSpot)
             {
-                // (테이블: 미숙, 중숙, 반숙... 흠과 모두 "제한적"으로 동일)
                 return ("제한적 (외관 판매 부적합, 가공용)", TEXT_COLOR, CONDITIONAL_COLOR);
             }
 
-            // --- 규칙 3: "갈색 반점(brown-spot)"만 있거나 "결함 없음" ---
-            // (scab과 black-spot은 이미 위에서 걸러졌음)
+            // --- 규칙 4: "갈색 반점(brown-spot)"만 있거나 "결함 없음" ---
+            // (scab, black-spot, un-healthy(과숙)는 이미 위에서 걸러졌음)
             // 이제 익음 단계(ripeness)에 따라 분기
             switch (englishRipeness)
             {
@@ -560,11 +578,7 @@ namespace MangoClassifierWPF
                     else // noDefects
                         return ("가능 (일반 판매용)", TEXT_COLOR, PASS_COLOR);
 
-                case "un-healthy": // 과숙 (맵핑 기준)
-                    if (hasBrownSpot)
-                        return ("가능 (가공용/할인 판매)", TEXT_COLOR, PASS_COLOR);
-                    else // noDefects
-                        return ("가능 (빠른 판매/가공/할인)", TEXT_COLOR, PASS_COLOR);
+                // [ ★ 수정됨 ★ ] "un-healthy" 케이스는 위에서 처리했으므로 여기서는 삭제됨.
 
                 case "ripe_with_consumable_disease": // 흠과
                     // (scab, black-spot은 이미 위에서 걸러짐)
@@ -580,7 +594,7 @@ namespace MangoClassifierWPF
         }
 
         // -----------------------------------------------------------------
-        // [ 이하 모델 추론 및 헬퍼 함수 ]
+        // [ 이하 모델 추론 및 헬퍼 함수 (기존과 동일) ]
         // -----------------------------------------------------------------
 
         private async Task<List<DetectionResult>> RunDefectDetectionAsync(Image<Rgb24> originalImage, Rectangle cropBox)
@@ -725,9 +739,6 @@ namespace MangoClassifierWPF
             return (finalImage, resizeScale, padX, padY);
         }
 
-        // -----------------------------------------------------------------
-        // [ ★ 수정] Softmax (백분율) 복원
-        // -----------------------------------------------------------------
         private async Task<(string KoreanTopClass, string EnglishTopClass, float TopConfidence, List<PredictionScore> AllScores)> RunClassificationAsync(Image<Rgb24> originalImage, Rectangle cropBox)
         {
             if (_classificationSession == null) throw new InvalidOperationException("분류 세션이 초기화되지 않았습니다.");
@@ -758,8 +769,6 @@ namespace MangoClassifierWPF
                     {
                         var output = results.First().AsTensor<float>();
 
-                        // [ ★ 수정됨 ] 모델 출력을 이미 확률로 간주합니다.
-                        // C#에서 Softmax 함수를 호출하지 않습니다.
                         var probabilities = output.ToArray();
 
                         var allScores = new List<PredictionScore>();
@@ -771,7 +780,7 @@ namespace MangoClassifierWPF
                             allScores.Add(new PredictionScore
                             {
                                 ClassName = koreanName,
-                                Confidence = probabilities[i] // 모델 원본 확률
+                                Confidence = probabilities[i]
                             });
                         }
 
@@ -781,16 +790,12 @@ namespace MangoClassifierWPF
                         string englishTopClass = _classificationClassNames[maxIndex];
                         string koreanTopClass = _translationMap.GetValueOrDefault(englishTopClass, englishTopClass);
 
-                        // [ ★ 수정됨 ] TopConfidence는 이제 모델의 원본 확률입니다.
                         return (koreanTopClass, englishTopClass, maxConfidence, allScores);
                     }
                 }
             });
         }
 
-        // -----------------------------------------------------------------
-        // [ ★ 추가] Softmax 함수 복원 (백분율 계산용)
-        // -----------------------------------------------------------------
         private float[] Softmax(float[] logits)
         {
             var maxLogit = logits.Max();
