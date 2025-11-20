@@ -62,49 +62,45 @@ namespace MangoClassifierWPF
 
     public partial class MainWindow : Window
     {
-        private InferenceSession? _classificationSession;
-        private InferenceSession? _detectionSession;
-        private InferenceSession? _defectSession;
+        private InferenceSession? _classificationSession; // 익음 정도
+        private InferenceSession? _detectionSession;     // 객체 탐지
+        private InferenceSession? _defectSession;        // 결함 탐지
+        private InferenceSession? _varietySession;       // 품종 분류
 
         private List<AnalysisHistoryItem> _analysisHistory = new List<AnalysisHistoryItem>();
         private bool _isHistoryLoading = false;
 
-        // --- 분류 모델 (best.onnx) 설정 ---
+        // --- 익음 분류 모델 (best.onnx) 설정 ---
         private readonly string[] _classificationClassNames = new string[]
         { "breaking-stage", "half-ripe-stage","un-healthy", "ripe", "ripe_with_consumable_disease", "unripe" };
+
         private readonly Dictionary<string, string> _translationMap = new Dictionary<string, string>
         {
             { "half-ripe-stage", "반숙" },
             { "unripe", "미숙" },
             { "breaking-stage", "중숙" },
             { "ripe", "익음" },
-            { "un-healthy", "과숙" }, // 'un-healthy'가 '과숙'으로 매핑됨
+            { "un-healthy", "과숙" },
             { "ripe_with_consumable_disease", "흠과" },
         };
         private const int ClassificationInputSize = 224;
 
-        // --- 탐지 모델 (detection.onnx - 망고 전체) 설정 ---
+        // --- 탐지 모델 (detection.onnx) 설정 ---
         private readonly string[] _detectionClassNames = new string[]
         { "Apple", "Banana", "Orange", "Mango", "Grape", "Guava", "Kiwi", "Lemon", "Litchi", "Pomegranate", "Strawberry", "Watermelon" };
+
         private readonly Dictionary<string, string> _detectionTranslationMap = new Dictionary<string, string>
         {
-            {"Apple", "사과" },
-            {"Banana", "바나나" },
-            {"Orange","오렌지" },
-            {"Mango", "망고" },
-            {"Graph", "포도" },
-            {"Guava","구아바" },
-            {"Kiwi","키위" },
-            {"Lemon","레몬" },
-            {"Litchi","석류" },
-            {"Strawberry","스트로베리" },
-            {"Watermelon","수박" },
+            {"Apple", "사과" }, {"Banana", "바나나" }, {"Orange","오렌지" }, {"Mango", "망고" },
+            {"Graph", "포도" }, {"Guava","구아바" }, {"Kiwi","키위" }, {"Lemon","레몬" },
+            {"Litchi","석류" }, {"Strawberry","스트로베리" }, {"Watermelon","수박" },
         };
         private const int DetectionInputSize = 640;
 
         // --- 결함 탐지 모델 (defect_detection.onnx) 설정 ---
         private readonly string[] _defectClassNames = new string[]
         { "brown-spot", "black-spot", "scab" };
+
         private readonly Dictionary<string, string> _defectTranslationMap = new Dictionary<string, string>
         {
             { "brown-spot", "갈색 반점" },
@@ -112,6 +108,35 @@ namespace MangoClassifierWPF
             { "scab", "더뎅이병" }
         };
         private const int DefectInputSize = 640;
+
+        // ================================================================================
+        // [★수정됨] 품종 분류 모델 (mango_classify.onnx) 설정
+        // 등급(Class_I, II, Extra)을 제외하고 남은 8개 품종
+        // ================================================================================
+        private readonly string[] _varietyClassNames = new string[]
+        {
+            "Anwar Ratool",
+            "Chaunsa (Black)",
+            "Chaunsa (Summer Bahisht)",
+            "Chaunsa (White)",
+            "Dosehri",
+            "Fajri",
+            "Langra",
+            "Sindhri"
+        };
+
+        private readonly Dictionary<string, string> _varietyTranslationMap = new Dictionary<string, string>
+        {
+            { "Anwar Ratool", "안와르 라툴" },
+            { "Chaunsa (Black)", "차운사 (블랙)" },
+            { "Chaunsa (Summer Bahisht)", "차운사 (서머 바히슈트)" },
+            { "Chaunsa (White)", "차운사 (화이트)" },
+            { "Dosehri", "도세리" },
+            { "Fajri", "파즈리" },
+            { "Langra", "랑그라" },
+            { "Sindhri", "신드리" }
+        };
+        private const int VarietyInputSize = 224;
 
 
         public MainWindow()
@@ -121,7 +146,7 @@ namespace MangoClassifierWPF
 
             FarmEnvTextBlock.Text = "온도: 28°C\n습도: 75%";
             WeatherTextBlock.Text = "맑음, 32°C\n바람: 3m/s";
-            SeasonInfoTextBlock.Text = "수확기 (7월)\n품종: 애플망고";
+            SeasonInfoTextBlock.Text = "수확기 (7월)\n주요 품종: 차운사, 신드리";
         }
 
         private async void LoadModelsAsync()
@@ -133,17 +158,31 @@ namespace MangoClassifierWPF
                     var sessionOptions = new SessionOptions();
                     sessionOptions.LogSeverityLevel = OrtLoggingLevel.ORT_LOGGING_LEVEL_ERROR;
 
+                    // 1. 익음 분류
                     string classificationModelPath = System.IO.Path.Combine(AppContext.BaseDirectory, "best.onnx");
                     if (!File.Exists(classificationModelPath)) { Dispatcher.Invoke(() => MessageBox.Show($"분류 모델 파일을 찾을 수 없습니다: {classificationModelPath}", "모델 로드 오류", MessageBoxButton.OK, MessageBoxImage.Error)); return; }
                     _classificationSession = new InferenceSession(classificationModelPath, sessionOptions);
 
+                    // 2. 객체 탐지
                     string detectionModelPath = System.IO.Path.Combine(AppContext.BaseDirectory, "detection.onnx");
                     if (!File.Exists(detectionModelPath)) { Dispatcher.Invoke(() => MessageBox.Show($"탐지 모델 파일을 찾을 수 없습니다: {detectionModelPath}", "모델 로드 오류", MessageBoxButton.OK, MessageBoxImage.Error)); return; }
                     _detectionSession = new InferenceSession(detectionModelPath, sessionOptions);
 
+                    // 3. 결함 탐지
                     string defectModelPath = System.IO.Path.Combine(AppContext.BaseDirectory, "defect_detection.onnx");
                     if (!File.Exists(defectModelPath)) { Dispatcher.Invoke(() => MessageBox.Show($"결함 탐지 모델 파일을 찾을 수 없습니다: {defectModelPath}", "모델 로드 오류", MessageBoxButton.OK, MessageBoxImage.Error)); return; }
                     _defectSession = new InferenceSession(defectModelPath, sessionOptions);
+
+                    // 4. 품종 분류
+                    string varietyModelPath = System.IO.Path.Combine(AppContext.BaseDirectory, "mango_classify.onnx");
+                    if (File.Exists(varietyModelPath))
+                    {
+                        _varietySession = new InferenceSession(varietyModelPath, sessionOptions);
+                    }
+                    else
+                    {
+                        System.Diagnostics.Debug.WriteLine("품종 모델(mango_classify.onnx)을 찾을 수 없습니다.");
+                    }
                 });
 
                 ResetRightPanelToReady();
@@ -159,7 +198,7 @@ namespace MangoClassifierWPF
         {
             if (_classificationSession == null || _detectionSession == null || _defectSession == null)
             {
-                MessageBox.Show("모델이 아직 로드되지 않았습니다.", "오류", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show("필수 모델이 아직 로드되지 않았습니다.", "오류", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
@@ -181,9 +220,8 @@ namespace MangoClassifierWPF
         }
 
         // -----------------------------------------------------------------
-        // [드래그 앤 드롭 이벤트 핸들러]
+        // [드래그 앤 드롭 이벤트]
         // -----------------------------------------------------------------
-
         private void WelcomePanel_DragEnter(object sender, DragEventArgs e)
         {
             if (e.Data.GetDataPresent(DataFormats.FileDrop)) e.Effects = DragDropEffects.Copy;
@@ -219,14 +257,14 @@ namespace MangoClassifierWPF
                     }
                     else
                     {
-                        MessageBox.Show("지원하지 않는 파일 형식입니다. (jpg, jpeg, png만 가능)", "파일 오류", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        MessageBox.Show("지원하지 않는 파일 형식입니다.", "파일 오류", MessageBoxButton.OK, MessageBoxImage.Warning);
                     }
                 }
             }
         }
 
         // -----------------------------------------------------------------
-        // [이력 불러오기 이벤트 핸들러]
+        // [이력 불러오기]
         // -----------------------------------------------------------------
         private void HistoryListView_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
@@ -278,7 +316,7 @@ namespace MangoClassifierWPF
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"이력을 불러오는 중 오류가 발생했습니다: {ex.Message}", "이력 오류", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"이력 로드 중 오류: {ex.Message}", "오류", MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally
             {
@@ -287,9 +325,8 @@ namespace MangoClassifierWPF
         }
 
         // -----------------------------------------------------------------
-        // [이미지 처리 및 UI 리셋 헬퍼 함수]
+        // [이미지 처리 메인 로직]
         // -----------------------------------------------------------------
-
         private async Task ProcessImageAsync(string imagePath)
         {
             _isHistoryLoading = true;
@@ -376,17 +413,12 @@ namespace MangoClassifierWPF
             FullResultsListView.ItemsSource = null;
             DefectResultsTextBlock.Text = "대기 중";
             FinalDecisionTextBlock.Text = "대기 중";
-
-            if (FinalDecisionTextBlock.Parent is Border decisionBorder)
-            {
-                decisionBorder.Background = Brushes.DarkSlateGray;
-            }
+            if (FinalDecisionTextBlock.Parent is Border decisionBorder) decisionBorder.Background = Brushes.DarkSlateGray;
         }
 
         // -----------------------------------------------------------------
-        // [ 분석 파이프라인 및 이력 저장 ]
+        // [ 분석 파이프라인 ]
         // -----------------------------------------------------------------
-
         private async Task RunFullPipelineAsync(string imagePath, BitmapImage bitmap)
         {
             DetectionCanvas.Children.Clear();
@@ -400,6 +432,7 @@ namespace MangoClassifierWPF
 
             using (var originalImage = SixLabors.ImageSharp.Image.Load<Rgb24>(imagePath))
             {
+                // 1. 객체 탐지
                 var detectionResults = await RunDetectionAsync(imagePath);
 
                 if (detectionResults == null || !detectionResults.Any())
@@ -430,17 +463,37 @@ namespace MangoClassifierWPF
                     return;
                 }
 
+                // 2. 익음 정도 분석 (안전장치 적용)
                 var (koreanPredictedClass, englishPredictedClass, confidence, allScores) = await RunClassificationAsync(originalImage, cropBox);
-                defectResults = await RunDefectDetectionAsync(originalImage, cropBox);
-                var (decision, color, decisionColor) = GetFinalDecision(englishPredictedClass, defectResults, topDetection.Box);
 
+                // 3. 결함 탐지
+                defectResults = await RunDefectDetectionAsync(originalImage, cropBox);
+
+                // 4. 품종 분석 (안전장치 적용)
+                string varietyName = "";
+                if (_varietySession != null)
+                {
+                    var (koreanVariety, varietyConf) = await RunVarietyClassificationAsync(originalImage, cropBox);
+                    varietyName = koreanVariety;
+                }
+
+                // 5. 최종 판정
+                var (decision, color, decisionColor) = GetFinalDecision(englishPredictedClass, defectResults, topDetection.Box);
                 string estimatedWeight = EstimateWeightCategory(topDetection.Box);
 
                 // --- UI 업데이트 ---
-                DetectionResultTextBlock.Text = detectionText;
+                if (detectionSucceeded && !string.IsNullOrEmpty(varietyName))
+                {
+                    DetectionResultTextBlock.Text = $"{varietyName}";
+                }
+                else
+                {
+                    DetectionResultTextBlock.Text = detectionText;
+                }
+
                 DetectedSizeTextBlock.Text = estimatedWeight;
                 RipenessResultTextBlock.Text = $"{koreanPredictedClass}";
-                ConfidenceTextBlock.Text = $"{confidence * 100:F2} %"; // Softmax 백분율
+                ConfidenceTextBlock.Text = $"{confidence * 100:F2} %";
                 FullResultsListView.ItemsSource = allScores;
 
                 DetectionResultTextBlock.Foreground = Brushes.Orange;
@@ -448,10 +501,7 @@ namespace MangoClassifierWPF
 
                 FinalDecisionTextBlock.Text = decision;
                 FinalDecisionTextBlock.Foreground = color;
-                if (FinalDecisionTextBlock.Parent is Border decisionBorder)
-                {
-                    decisionBorder.Background = decisionColor;
-                }
+                if (FinalDecisionTextBlock.Parent is Border decisionBorder) decisionBorder.Background = decisionColor;
 
                 if (defectResults.Any())
                 {
@@ -473,16 +523,10 @@ namespace MangoClassifierWPF
                 DefectResultsTextBlock.Text = defectListText;
                 DefectResultsTextBlock.Foreground = defectListForeground;
 
-                if (detectionSucceeded)
-                {
-                    DrawBox(topDetection.Box, Brushes.OrangeRed, 3);
-                }
-                foreach (var defect in defectResults)
-                {
-                    DrawBox(defect.Box, Brushes.Yellow, 2);
-                }
+                if (detectionSucceeded) DrawBox(topDetection.Box, Brushes.OrangeRed, 3);
+                foreach (var defect in defectResults) DrawBox(defect.Box, Brushes.Yellow, 2);
 
-                // --- 분석 완료 후 이력 저장 ---
+                // --- 이력 저장 ---
                 var historyItem = new AnalysisHistoryItem
                 {
                     Thumbnail = bitmap,
@@ -490,116 +534,117 @@ namespace MangoClassifierWPF
                     OriginalImageWidth = bitmap.PixelWidth,
                     OriginalImageHeight = bitmap.PixelHeight,
                     FileName = System.IO.Path.GetFileName(imagePath),
-
                     MangoDetections = new List<DetectionResult> { topDetection },
                     DefectDetections = defectResults,
-
-                    DetectionResultText = detectionText,
+                    DetectionResultText = DetectionResultTextBlock.Text,
                     DetectedSizeText = estimatedWeight,
                     RipenessResultText = koreanPredictedClass,
-                    ConfidenceText = $"{confidence * 100:F2} %", // Softmax 백분율
-
+                    ConfidenceText = $"{confidence * 100:F2} %",
                     FinalDecisionText = decision,
                     FinalDecisionBackground = decisionColor,
                     FinalDecisionBrush = (decisionColor == REJECT_COLOR || decisionColor == CONDITIONAL_COLOR) ? Brushes.Tomato : Brushes.LightGreen,
-
                     AllRipenessScores = allScores,
                     DefectListText = defectListText,
                     DefectListForeground = defectListForeground
                 };
-
                 _analysisHistory.Insert(0, historyItem);
-
                 HistoryListView.ItemsSource = null;
                 HistoryListView.ItemsSource = _analysisHistory;
             }
         }
 
-        // --- 최종 결론 색상 멤버 변수 ---
         private readonly Brush PASS_COLOR = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x2E, 0xCC, 0x71));
         private readonly Brush REJECT_COLOR = Brushes.DarkRed;
         private readonly Brush CONDITIONAL_COLOR = Brushes.DarkOrange;
         private readonly Brush HOLD_COLOR = Brushes.DarkSlateGray;
         private readonly Brush TEXT_COLOR = Brushes.White;
 
-        // -----------------------------------------------------------------
-        // [ ★ 수정됨 ★ ] 님의 요청("과숙은 다 폐기")을 반영한 로직
-        // -----------------------------------------------------------------
         private (string Decision, Brush TextColor, Brush BackgroundColor) GetFinalDecision(string englishRipeness, List<DetectionResult> defects, Rectangle mangoBox)
         {
-            // 1. 결함 종류 확인
             bool hasScab = defects.Any(d => d.ClassName == "scab");
             bool hasBlackSpot = defects.Any(d => d.ClassName == "black-spot");
             bool hasBrownSpot = defects.Any(d => d.ClassName == "brown-spot");
-            bool noDefects = !defects.Any(); // 결함이 하나도 없는지 확인
 
-            // --- 규칙 1: "더뎅이병(scab)"이 있으면 무조건 판매 금지 (최우선 순위) ---
-            if (hasScab)
-            {
-                return ($"판매 금지 ({_defectTranslationMap["scab"]} 검출)", TEXT_COLOR, REJECT_COLOR);
-            }
+            if (hasScab) return ($"판매 금지 ({_defectTranslationMap["scab"]} 검출)", TEXT_COLOR, REJECT_COLOR);
+            if (englishRipeness == "un-healthy") return ("판매 금지 (과숙 판정)", TEXT_COLOR, REJECT_COLOR);
+            if (hasBlackSpot) return ("제한적 (외관 판매 부적합, 가공용)", TEXT_COLOR, CONDITIONAL_COLOR);
 
-            // -----------------------------------------------------------------
-            // [ ★ 님의 요청 ★ ]
-            // --- 규칙 2: "과숙(un-healthy)"이면 무조건 판매 금지 ---
-            // -----------------------------------------------------------------
-            if (englishRipeness == "un-healthy")
-            {
-                return ("판매 금지 (과숙 판정)", TEXT_COLOR, REJECT_COLOR);
-            }
-
-            // --- 규칙 3: "검은 반점(black-spot)"이 있으면 (scab/과숙은 아닌 상태) 무조건 제한적 ---
-            if (hasBlackSpot)
-            {
-                return ("제한적 (외관 판매 부적합, 가공용)", TEXT_COLOR, CONDITIONAL_COLOR);
-            }
-
-            // --- 규칙 4: "갈색 반점(brown-spot)"만 있거나 "결함 없음" ---
-            // (scab, black-spot, un-healthy(과숙)는 이미 위에서 걸러졌음)
-            // 이제 익음 단계(ripeness)에 따라 분기
             switch (englishRipeness)
             {
-                case "unripe": // 미숙
-                case "breaking-stage": // 중숙
-                    if (hasBrownSpot)
-                        return ("제한적 (후숙/가공용, 외관 부적합)", TEXT_COLOR, HOLD_COLOR);
-                    else // noDefects
-                        return ("제한적 (후숙용 또는 가공용)", TEXT_COLOR, HOLD_COLOR);
-
-                case "half-ripe-stage": // 반숙
-                    if (hasBrownSpot)
-                        return ("가능 (가공용, 할인 판매)", TEXT_COLOR, PASS_COLOR);
-                    else // noDefects
-                        return ("가능 (후숙/가공/할인)", TEXT_COLOR, PASS_COLOR);
-
-                case "ripe": // 익음
-                    if (hasBrownSpot)
-                        return ("가능 (경미 흠집, 일반 판매)", TEXT_COLOR, PASS_COLOR);
-                    else // noDefects
-                        return ("가능 (일반 판매용)", TEXT_COLOR, PASS_COLOR);
-
-                // [ ★ 수정됨 ★ ] "un-healthy" 케이스는 위에서 처리했으므로 여기서는 삭제됨.
-
-                case "ripe_with_consumable_disease": // 흠과
-                    // (scab, black-spot은 이미 위에서 걸러짐)
-                    if (hasBrownSpot)
-                        return ("가능 (가공용/할인 판매)", TEXT_COLOR, PASS_COLOR);
-                    else // noDefects
-                        return ("가능 (가공용/할인 판매)", TEXT_COLOR, PASS_COLOR);
-
+                case "unripe":
+                case "breaking-stage":
+                    return ("제한적 (후숙/가공용)", TEXT_COLOR, HOLD_COLOR);
+                case "half-ripe-stage":
+                    return ("가능 (후숙/가공/할인)", TEXT_COLOR, PASS_COLOR);
+                case "ripe":
+                    return ("가능 (일반 판매용)", TEXT_COLOR, PASS_COLOR);
+                case "ripe_with_consumable_disease":
+                    return ("가능 (가공용/할인 판매)", TEXT_COLOR, PASS_COLOR);
                 default:
-                    // 혹시 모를 예외 처리 (예: _classificationClassNames에 오타가 있을 경우)
-                    return ("판단 보류 (알 수 없는 익음)", TEXT_COLOR, HOLD_COLOR);
+                    return ("판단 보류", TEXT_COLOR, HOLD_COLOR);
             }
         }
 
         // -----------------------------------------------------------------
-        // [ 이하 모델 추론 및 헬퍼 함수 (기존과 동일) ]
+        // [ 모델 추론 함수 (안전장치 포함) ]
         // -----------------------------------------------------------------
 
+        // 1. 품종 분류 (안전장치: IndexOutOfRange 방지)
+        private async Task<(string KoreanName, float Confidence)> RunVarietyClassificationAsync(Image<Rgb24> originalImage, Rectangle cropBox)
+        {
+            if (_varietySession == null) return ("모델 없음", 0f);
+
+            return await Task.Run(() =>
+            {
+                try
+                {
+                    using (var image = originalImage.Clone(x => x.Crop(cropBox).Resize(new ResizeOptions { Size = new SixLabors.ImageSharp.Size(VarietyInputSize, VarietyInputSize), Mode = SixLabors.ImageSharp.Processing.ResizeMode.Crop })))
+                    {
+                        var tensor = new DenseTensor<float>(new[] { 1, 3, VarietyInputSize, VarietyInputSize });
+                        image.ProcessPixelRows(accessor =>
+                        {
+                            for (int y = 0; y < image.Height; y++)
+                            {
+                                var rowSpan = accessor.GetRowSpan(y);
+                                for (int x = 0; x < image.Width; x++)
+                                {
+                                    tensor[0, 0, y, x] = rowSpan[x].R / 255.0f;
+                                    tensor[0, 1, y, x] = rowSpan[x].G / 255.0f;
+                                    tensor[0, 2, y, x] = rowSpan[x].B / 255.0f;
+                                }
+                            }
+                        });
+
+                        var inputs = new List<NamedOnnxValue> { NamedOnnxValue.CreateFromTensor("images", tensor) };
+                        using (var results = _varietySession.Run(inputs))
+                        {
+                            var output = results.First().AsTensor<float>().ToArray();
+                            var probabilities = Softmax(output);
+                            float maxConf = probabilities.Max();
+                            int maxIndex = Array.IndexOf(probabilities, maxConf);
+
+                            if (maxIndex >= 0 && maxIndex < _varietyClassNames.Length)
+                            {
+                                string englishName = _varietyClassNames[maxIndex];
+                                return (_varietyTranslationMap.GetValueOrDefault(englishName, englishName), maxConf);
+                            }
+                            else
+                            {
+                                System.Diagnostics.Debug.WriteLine($"[경고] 품종 인덱스 초과: {maxIndex}");
+                                return ("알 수 없음 (모델 불일치)", maxConf);
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex) { System.Diagnostics.Debug.WriteLine(ex.Message); }
+                return ("오류", 0f);
+            });
+        }
+
+        // 2. 결함 탐지
         private async Task<List<DetectionResult>> RunDefectDetectionAsync(Image<Rgb24> originalImage, Rectangle cropBox)
         {
-            if (_defectSession == null) throw new InvalidOperationException("결함 탐지 세션이 초기화되지 않았습니다.");
+            if (_defectSession == null) throw new InvalidOperationException("결함 탐지 세션 없음");
             return await Task.Run(() =>
             {
                 using (var croppedImage = originalImage.Clone(x => x.Crop(cropBox)))
@@ -660,16 +705,16 @@ namespace MangoClassifierWPF
         private string EstimateWeightCategory(Rectangle box)
         {
             long area = box.Width * box.Height;
-            const long THRESHOLD_SMALL = 50000, THRESHOLD_MEDIUM = 100000, THRESHOLD_LARGE = 150000;
-            if (area < THRESHOLD_SMALL) return "소 (150-300g)";
-            else if (area < THRESHOLD_MEDIUM) return "중 (350-500g)";
-            else if (area < THRESHOLD_LARGE) return "대 (500-650g)";
+            if (area < 50000) return "소 (150-300g)";
+            else if (area < 100000) return "중 (350-500g)";
+            else if (area < 150000) return "대 (500-650g)";
             else return "특대 (600-750g)";
         }
 
+        // 3. 객체 탐지
         private async Task<List<DetectionResult>> RunDetectionAsync(string imagePath)
         {
-            if (_detectionSession == null) throw new InvalidOperationException("탐지 세션이 초기화되지 않았습니다.");
+            if (_detectionSession == null) throw new InvalidOperationException("탐지 세션 없음");
             return await Task.Run(() =>
             {
                 using (var image = SixLabors.ImageSharp.Image.Load<Rgb24>(imagePath))
@@ -739,19 +784,13 @@ namespace MangoClassifierWPF
             return (finalImage, resizeScale, padX, padY);
         }
 
+        // 4. 익음 분류 (안전장치: Loop Count 제한)
         private async Task<(string KoreanTopClass, string EnglishTopClass, float TopConfidence, List<PredictionScore> AllScores)> RunClassificationAsync(Image<Rgb24> originalImage, Rectangle cropBox)
         {
-            if (_classificationSession == null) throw new InvalidOperationException("분류 세션이 초기화되지 않았습니다.");
+            if (_classificationSession == null) throw new InvalidOperationException("분류 세션 없음");
             return await Task.Run(() =>
             {
-                using (var image = originalImage.Clone(x =>
-                    x.Crop(cropBox)
-                     .Resize(new ResizeOptions
-                     {
-                         Size = new SixLabors.ImageSharp.Size(ClassificationInputSize, ClassificationInputSize),
-                         Mode = SixLabors.ImageSharp.Processing.ResizeMode.Crop
-                     })
-                ))
+                using (var image = originalImage.Clone(x => x.Crop(cropBox).Resize(new ResizeOptions { Size = new SixLabors.ImageSharp.Size(ClassificationInputSize, ClassificationInputSize), Mode = SixLabors.ImageSharp.Processing.ResizeMode.Crop })))
                 {
                     var tensor = new DenseTensor<float>(new[] { 1, 3, ClassificationInputSize, ClassificationInputSize });
                     for (int y = 0; y < image.Height; y++)
@@ -768,29 +807,22 @@ namespace MangoClassifierWPF
                     using (var results = _classificationSession.Run(inputs))
                     {
                         var output = results.First().AsTensor<float>();
-
-                        var probabilities = output.ToArray();
-
+                        var probabilities = Softmax(output.ToArray());
                         var allScores = new List<PredictionScore>();
-                        for (int i = 0; i < probabilities.Length; i++)
-                        {
-                            string englishName = _classificationClassNames[i];
-                            string koreanName = _translationMap.GetValueOrDefault(englishName, englishName);
 
-                            allScores.Add(new PredictionScore
-                            {
-                                ClassName = koreanName,
-                                Confidence = probabilities[i]
-                            });
+                        // 안전장치: 배열 길이 중 작은 쪽까지만 반복
+                        int loopLimit = Math.Min(probabilities.Length, _classificationClassNames.Length);
+                        for (int i = 0; i < loopLimit; i++)
+                        {
+                            string name = _classificationClassNames[i];
+                            allScores.Add(new PredictionScore { ClassName = _translationMap.GetValueOrDefault(name, name), Confidence = probabilities[i] });
                         }
 
-                        float maxConfidence = probabilities.Max();
-                        int maxIndex = Array.IndexOf(probabilities, maxConfidence);
+                        float maxConf = probabilities.Max();
+                        int maxIndex = Array.IndexOf(probabilities, maxConf);
+                        string eng = (maxIndex >= 0 && maxIndex < _classificationClassNames.Length) ? _classificationClassNames[maxIndex] : "Unknown";
 
-                        string englishTopClass = _classificationClassNames[maxIndex];
-                        string koreanTopClass = _translationMap.GetValueOrDefault(englishTopClass, englishTopClass);
-
-                        return (koreanTopClass, englishTopClass, maxConfidence, allScores);
+                        return (_translationMap.GetValueOrDefault(eng, eng), eng, maxConf, allScores);
                     }
                 }
             });
