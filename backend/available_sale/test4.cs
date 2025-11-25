@@ -111,7 +111,7 @@ namespace MangoClassifierWPF
         private const int DefectInputSize = 640;
 
         // ================================================================================
-        // [★수정됨] 품종 분류 모델 (mango_classify.onnx) 설정
+        // 품종 분류 모델 (mango_classify.onnx) 설정
         // ================================================================================
         private readonly string[] _varietyClassNames = new string[]
         {
@@ -214,7 +214,7 @@ namespace MangoClassifierWPF
             }
         }
 
-        // [수정됨] 정확도 테스트 버튼 핸들러 (폴더 단위 검증)
+        // [정확도 테스트 버튼 핸들러]
         private async void AccuracyTestButton_Click(object sender, RoutedEventArgs e)
         {
             if (_classificationSession == null || _detectionSession == null || _defectSession == null)
@@ -223,11 +223,11 @@ namespace MangoClassifierWPF
                 return;
             }
 
-            // 1. 테스트할 폴더의 성격(폐기 vs 정상)을 먼저 물어봄
+            // 테스트할 폴더의 정답(Ground Truth) 설정
             var answer = MessageBox.Show(
                 "테스트할 폴더가 '폐기(불량)' 이미지들로만 구성되어 있나요?\n\n" +
-                "예 (Yes) : 폐기 폴더 (모델이 '판매 금지'로 예측해야 정답)\n" +
-                "아니요 (No) : 정상/판매가능 폴더 (모델이 '판매 가능' 등으로 예측해야 정답)",
+                "예 (Yes) : 폐기 폴더 (모델이 '폐기'로 예측해야 정답)\n" +
+                "아니요 (No) : 정상/판매가능 폴더 (모델이 '가능' 또는 '제한적'으로 예측해야 정답)",
                 "테스트 기준 설정",
                 MessageBoxButton.YesNoCancel,
                 MessageBoxImage.Question);
@@ -269,7 +269,7 @@ namespace MangoClassifierWPF
                     ImagePreviewPanel.Visibility = Visibility.Visible;
 
                     int totalCount = 0;
-                    int correctCount = 0; // 모델이 기준에 맞게 예측한 횟수
+                    int correctCount = 0;
 
                     AccuracyResultTextBlock.Text = "테스트 시작...";
 
@@ -277,7 +277,7 @@ namespace MangoClassifierWPF
                     {
                         totalCount++;
 
-                        // 1. 화면 업데이트 (이미지 변경)
+                        // 1. 화면 업데이트
                         BitmapImage bitmap = new BitmapImage();
                         bitmap.BeginInit();
                         bitmap.UriSource = new Uri(imagePath, UriKind.Absolute);
@@ -289,29 +289,27 @@ namespace MangoClassifierWPF
                         PreviewGrid.Width = bitmap.PixelWidth;
                         PreviewGrid.Height = bitmap.PixelHeight;
 
-                        // UI 렌더링 대기
                         await Task.Delay(20);
 
-                        // 2. 파이프라인 실행 (AI 분석)
+                        // 2. 파이프라인 실행
                         await RunFullPipelineAsync(imagePath, bitmap);
 
                         // 3. 결과 판정 로직
                         string decisionText = FinalDecisionTextBlock.Text;
 
-                        // AI가 '판매 금지(폐기)'라고 판단했는지 여부
-                        bool isAiPredictedDiscard = decisionText.Contains("판매 금지");
+                        // "폐기" 단어가 포함되어 있으면 불량 판정으로 간주
+                        bool isAiPredictedDiscard = decisionText.Contains("폐기");
 
-                        // 정답 여부 판단
                         bool isCorrect = false;
 
                         if (isTestingDiscardFolder)
                         {
-                            // [폐기 폴더 테스트] -> AI가 '판매 금지'라고 해야 정답
+                            // [폐기 폴더 테스트] -> AI가 '폐기'라고 해야 정답
                             if (isAiPredictedDiscard) isCorrect = true;
                         }
                         else
                         {
-                            // [정상 폴더 테스트] -> AI가 '판매 금지'가 아니라고 해야 정답
+                            // [정상 폴더 테스트] -> AI가 '폐기'가 아니라고 해야 정답 (가능, 제한적 등)
                             if (!isAiPredictedDiscard) isCorrect = true;
                         }
 
@@ -327,7 +325,6 @@ namespace MangoClassifierWPF
 
                     AccuracyResultTextBlock.Text = $"최종 정확도: {finalAccuracy:F1}% ({correctCount}/{totalCount})";
 
-                    // 상세 리포트 팝업
                     string resultMsg = $"[테스트 완료 - {targetLabel} 폴더]\n\n" +
                                        $"총 이미지: {totalCount}개\n" +
                                        $"정답 개수: {correctCount}개\n" +
@@ -335,13 +332,9 @@ namespace MangoClassifierWPF
                                        $"평균 정확도: {finalAccuracy:F1}%\n\n";
 
                     if (isTestingDiscardFolder)
-                    {
                         resultMsg += $"(폐기 폴더를 폐기로 잘 걸러낸 비율)";
-                    }
                     else
-                    {
                         resultMsg += $"(정상 폴더를 정상으로 잘 통과시킨 비율)";
-                    }
 
                     if (finalAccuracy >= 90)
                         MessageBox.Show(resultMsg + "\n\n매우 훌륭합니다!", "테스트 성공", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -361,9 +354,6 @@ namespace MangoClassifierWPF
             ResetToWelcomeState();
         }
 
-        // -----------------------------------------------------------------
-        // [드래그 앤 드롭 이벤트]
-        // -----------------------------------------------------------------
         private void WelcomePanel_DragEnter(object sender, DragEventArgs e)
         {
             if (e.Data.GetDataPresent(DataFormats.FileDrop)) e.Effects = DragDropEffects.Copy;
@@ -405,9 +395,6 @@ namespace MangoClassifierWPF
             }
         }
 
-        // -----------------------------------------------------------------
-        // [이력 불러오기]
-        // -----------------------------------------------------------------
         private void HistoryListView_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (_isHistoryLoading || e.AddedItems.Count == 0 || e.AddedItems[0] is not AnalysisHistoryItem selectedItem)
@@ -466,9 +453,6 @@ namespace MangoClassifierWPF
             }
         }
 
-        // -----------------------------------------------------------------
-        // [이미지 처리 메인 로직]
-        // -----------------------------------------------------------------
         private async Task ProcessImageAsync(string imagePath)
         {
             _isHistoryLoading = true;
@@ -532,7 +516,6 @@ namespace MangoClassifierWPF
                 HistoryListView.SelectedIndex = -1;
                 _isHistoryLoading = false;
 
-                // [리셋] 텍스트 초기화
                 AccuracyResultTextBlock.Text = "정확도 테스트 대기 중";
             });
         }
@@ -561,9 +544,6 @@ namespace MangoClassifierWPF
             if (FinalDecisionTextBlock.Parent is Border decisionBorder) decisionBorder.Background = Brushes.DarkSlateGray;
         }
 
-        // -----------------------------------------------------------------
-        // [ 분석 파이프라인 ]
-        // -----------------------------------------------------------------
         private async Task RunFullPipelineAsync(string imagePath, BitmapImage bitmap)
         {
             DetectionCanvas.Children.Clear();
@@ -622,7 +602,7 @@ namespace MangoClassifierWPF
                     varietyName = koreanVariety;
                 }
 
-                // 5. 최종 판정
+                // 5. 최종 판정 (업데이트된 로직 사용)
                 var (decision, color, decisionColor) = GetFinalDecision(englishPredictedClass, defectResults, topDetection.Box);
                 string estimatedWeight = EstimateWeightCategory(topDetection.Box);
 
@@ -704,35 +684,74 @@ namespace MangoClassifierWPF
         private readonly Brush HOLD_COLOR = Brushes.DarkSlateGray;
         private readonly Brush TEXT_COLOR = Brushes.White;
 
+        // [★ 수정된 최종 판정 로직]
         private (string Decision, Brush TextColor, Brush BackgroundColor) GetFinalDecision(string englishRipeness, List<DetectionResult> defects, Rectangle mangoBox)
         {
-            bool hasScab = defects.Any(d => d.ClassName == "scab");
-            bool hasBlackSpot = defects.Any(d => d.ClassName == "black-spot");
-            bool hasBrownSpot = defects.Any(d => d.ClassName == "brown-spot");
+            // 1. 결함 개수 카운트
+            int scabCount = defects.Count(d => d.ClassName == "scab");
+            int blackSpotCount = defects.Count(d => d.ClassName == "black-spot");
+            int brownSpotCount = defects.Count(d => d.ClassName == "brown-spot");
 
-            if (hasScab) return ($"판매 금지 ({_defectTranslationMap["scab"]} 검출)", TEXT_COLOR, REJECT_COLOR);
-            if (englishRipeness == "un-healthy") return ("판매 금지 (과숙 판정)", TEXT_COLOR, REJECT_COLOR);
-            if (hasBlackSpot) return ("제한적 (외관 판매 부적합, 가공용)", TEXT_COLOR, CONDITIONAL_COLOR);
-
-            switch (englishRipeness)
+            // ---------------------------------------------------------
+            // [기준 1] 모든 숙성도 + 더뎅이병 1개 이상 -> 폐기
+            // ---------------------------------------------------------
+            if (scabCount >= 1)
             {
-                case "unripe":
-                case "breaking-stage":
-                    return ("제한적 (후숙/가공용)", TEXT_COLOR, HOLD_COLOR);
-                case "half-ripe-stage":
-                    return ("가능 (후숙/가공/할인)", TEXT_COLOR, PASS_COLOR);
-                case "ripe":
-                    return ("가능 (일반 판매용)", TEXT_COLOR, PASS_COLOR);
-                case "ripe_with_consumable_disease":
-                    return ("가능 (가공용/할인 판매)", TEXT_COLOR, PASS_COLOR);
-                default:
-                    return ("판단 보류", TEXT_COLOR, HOLD_COLOR);
+                return ("폐기 (더뎅이병 검출)", TEXT_COLOR, REJECT_COLOR);
             }
-        }
 
-        // -----------------------------------------------------------------
-        // [ 모델 추론 함수 ]
-        // -----------------------------------------------------------------
+            // ---------------------------------------------------------
+            // [기준 2] 과숙 + (검은 반점 1개 이상 OR 갈색 반점 1개 이상) -> 폐기
+            // ---------------------------------------------------------
+            if (englishRipeness == "un-healthy")
+            {
+                if (blackSpotCount >= 1 || brownSpotCount >= 1)
+                {
+                    return ("폐기 (과숙 및 부패 진행)", TEXT_COLOR, REJECT_COLOR);
+                }
+            }
+
+            // ---------------------------------------------------------
+            // [기준 3] 모든 숙성도 + 검은 반점 1개 이상 -> 제한적
+            // (위에서 폐기 조건을 통과했으므로, 여기 걸리면 제한적임)
+            // ---------------------------------------------------------
+            if (blackSpotCount >= 1)
+            {
+                return ("제한적 (외관 판매 부적합 - 가공용)", TEXT_COLOR, CONDITIONAL_COLOR);
+            }
+
+            // ---------------------------------------------------------
+            // [기준 4] 모든 숙성도 + 갈색 반점 10개 이상 -> 제한적
+            // ---------------------------------------------------------
+            if (brownSpotCount >= 10)
+            {
+                return ("제한적 (갈색 반점 과다 - 가공용)", TEXT_COLOR, CONDITIONAL_COLOR);
+            }
+
+            // ---------------------------------------------------------
+            // [기준 5] 미숙 또는 중숙 -> 제한적 (후숙 필요)
+            // ---------------------------------------------------------
+            if (englishRipeness == "unripe" || englishRipeness == "breaking-stage")
+            {
+                return ("제한적 (후숙 필요)", TEXT_COLOR, CONDITIONAL_COLOR);
+            }
+
+            // ---------------------------------------------------------
+            // [기준 6] 반숙, 익음, 흠과 -> 가능 (판매 가능)
+            // ---------------------------------------------------------
+            if (englishRipeness == "half-ripe-stage" ||
+                englishRipeness == "ripe" ||
+                englishRipeness == "ripe_with_consumable_disease")
+            {
+                return ("가능 (판매 가능)", TEXT_COLOR, PASS_COLOR);
+            }
+
+            // [예외] 과숙이지만 반점이 없는 경우 등 (표에는 없으나 안전을 위해 폐기로 처리)
+            if (englishRipeness == "un-healthy")
+                return ("폐기 (과숙)", TEXT_COLOR, REJECT_COLOR);
+
+            return ("판단 보류", TEXT_COLOR, HOLD_COLOR);
+        }
 
         // 1. 품종 분류
         private async Task<(string KoreanName, float Confidence)> RunVarietyClassificationAsync(Image<Rgb24> originalImage, Rectangle cropBox)
