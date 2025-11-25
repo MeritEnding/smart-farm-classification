@@ -174,8 +174,12 @@ namespace MangoClassifierWPF
                                       .ToArray();
 
             if (files.Length == 0) { WpfMessageBox.Show("이미지가 없습니다."); return; }
-
-            string targetClassEnglish = "ripe";
+            // string targetClassEnglish = "ripe";
+            // string targetClassEnglish = "unripe";
+            // string targetClassEnglish = "un-healthy";
+            // string targetClassEnglish = "half-ripe-stage";
+            string targetClassEnglish = "breaking-stage";
+            // string targetClassEnglish = "ripe_with_consumable_disease";
             if (WpfMessageBox.Show($"'{folderPath}' 폴더의 이미지 {files.Length}장을\n[ 정답: {targetClassEnglish} ]로 가정하고 테스트합니까?",
                 "검증", MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
 
