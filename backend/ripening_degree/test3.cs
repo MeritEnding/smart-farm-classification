@@ -25,28 +25,43 @@ using OpenFileDialog = Microsoft.Win32.OpenFileDialog;
 
 namespace MangoClassifierWPF
 {
-    // --- 데이터 클래스 ---
     public class AnalysisHistoryItem
     {
         public BitmapImage? Thumbnail { get; set; }
         public BitmapImage? FullImageSource { get; set; }
         public double OriginalImageWidth { get; set; }
         public double OriginalImageHeight { get; set; }
-        public List<DetectionResult>? MangoDetections { get; set; }
+
+        public Rectangle AnalysisBox { get; set; }
         public List<DetectionResult>? DefectDetections { get; set; }
+
         public string FileName { get; set; } = "";
+
+        // UI 표시용
         public string DetectionResultText { get; set; } = "";
         public string DetectedSizeText { get; set; } = "";
         public string RipenessResultText { get; set; } = "";
         public string VarietyResultText { get; set; } = "";
         public string ConfidenceText { get; set; } = "";
         public string FinalDecisionText { get; set; } = "";
+
+        // 통계 데이터
+        public byte ValR { get; set; }
+        public byte ValG { get; set; }
+        public byte ValB { get; set; }
+        public double ValEdge { get; set; }
+        public int ValBlobCount { get; set; }
+
+        // [추가] 어떤 결함들이었는지 저장 (통계용)
+        public List<string> ValDefectTypes { get; set; } = new List<string>();
+
         public Brush? FinalDecisionBackground { get; set; }
         public Brush? FinalDecisionBrush { get; set; }
         public IEnumerable<PredictionScore>? AllRipenessScores { get; set; }
         public string DefectListText { get; set; } = "";
         public Brush? DefectListForeground { get; set; }
-        public long PerfDetectionTimeMs { get; set; }
+
+        // 성능 시간
         public long PerfClassificationTimeMs { get; set; }
         public long PerfVarietyTimeMs { get; set; }
         public long PerfDefectTimeMs { get; set; }
@@ -56,20 +71,9 @@ namespace MangoClassifierWPF
     public class PredictionScore { public string ClassName { get; set; } = ""; public double Confidence { get; set; } }
     public class DetectionResult { public string ClassName { get; set; } = ""; public double Confidence { get; set; } public Rectangle Box { get; set; } }
 
-    // [신규] 이미지 특성 저장용
-    public class ImageFeatures
-    {
-        public double MeanR { get; set; }
-        public double MeanG { get; set; }
-        public double MeanB { get; set; }
-        public double EdgeDensity { get; set; } // %
-        public double BlobAreaRatio { get; set; } // %
-    }
-
     public partial class MainWindow : Window
     {
         private InferenceSession? _classificationSession;
-        private InferenceSession? _detectionSession;
         private InferenceSession? _defectSession;
         private InferenceSession? _varietySession;
 
@@ -84,10 +88,6 @@ namespace MangoClassifierWPF
             { "ripe", "익음" }, { "un-healthy", "과숙" }, { "ripe_with_consumable_disease", "흠과" }
         };
 
-        private const int DetectionInputSize = 640;
-        private readonly string[] _detectionClassNames = { "Mango" };
-        private readonly Dictionary<string, string> _detectionTranslationMap = new Dictionary<string, string> { { "Mango", "망고" }, { "Not Mango", "망고 아님" } };
-
         private const int DefectInputSize = 640;
         private readonly string[] _defectClassNames = { "black-spot", "brown-spot", "scab" };
         private readonly Dictionary<string, string> _defectTranslationMap = new Dictionary<string, string> {
@@ -97,7 +97,7 @@ namespace MangoClassifierWPF
         private const int VarietyInputSize = 224;
         private readonly string[] _varietyClassNames = { "Alphonso", "Amrapali", "Dasheri", "Langra", "Mallika", "Neelam", "Pairi", "Ramkela", "Totapuri" };
 
-        private Dictionary<string, int> _cumulativeStats;
+        private Dictionary<string, int> _cumulativeStats = new Dictionary<string, int>();
 
         // 색상 상수
         private readonly Brush PASS_COLOR = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x2E, 0xCC, 0x71));
@@ -117,11 +117,13 @@ namespace MangoClassifierWPF
             FarmEnvTextBlock.Text = "온도: 28°C\n습도: 75%";
             WeatherTextBlock.Text = "맑음, 32°C\n바람: 3m/s";
             SeasonInfoTextBlock.Text = "수확기 (7월)";
+
+            PerfDetectionTime.Text = "미사용";
         }
 
         private void InitializeCumulativeStats()
         {
-            _cumulativeStats = new Dictionary<string, int>();
+            _cumulativeStats.Clear();
             foreach (var koreanName in _translationMap.Values)
             {
                 if (!_cumulativeStats.ContainsKey(koreanName)) _cumulativeStats.Add(koreanName, 0);
@@ -147,7 +149,6 @@ namespace MangoClassifierWPF
                     var opts = new SessionOptions { LogSeverityLevel = OrtLoggingLevel.ORT_LOGGING_LEVEL_ERROR };
                     string baseDir = AppContext.BaseDirectory;
                     _classificationSession = new InferenceSession(System.IO.Path.Combine(baseDir, "best.onnx"), opts);
-                    _detectionSession = new InferenceSession(System.IO.Path.Combine(baseDir, "detection.onnx"), opts);
                     _defectSession = new InferenceSession(System.IO.Path.Combine(baseDir, "defect_detection.onnx"), opts);
 
                     string varietyPath = System.IO.Path.Combine(baseDir, "mango_classify.onnx");
@@ -158,143 +159,169 @@ namespace MangoClassifierWPF
             catch (Exception ex) { WpfMessageBox.Show($"모델 로드 오류: {ex.Message}"); }
         }
 
-        // --------------------------------------------------------------------
-        // [★핵심] 성능 검증 버튼 (시각적 배치 테스트)
-        // --------------------------------------------------------------------
+        // =========================================================
+        // [수정] 성능 검증: 결함 상세 통계 및 그래프 개선
+        // =========================================================
         private async void PerformanceTestButton_Click(object sender, RoutedEventArgs e)
         {
-            // 1. 폴더 선택 (파일 하나 선택하면 그 폴더를 사용)
-            var dlg = new OpenFileDialog { Title = "테스트할 폴더 내의 아무 이미지나 하나 선택하세요", Filter = "Images|*.jpg;*.png;*.jpeg" };
+            var dlg = new OpenFileDialog { Title = "테스트할 폴더 선택 (이미지 파일 하나 선택)", Filter = "Images|*.jpg;*.png;*.jpeg" };
             if (dlg.ShowDialog() != true) return;
 
             string folderPath = System.IO.Path.GetDirectoryName(dlg.FileName)!;
             string[] files = Directory.GetFiles(folderPath, "*.*")
                                       .Where(s => s.EndsWith(".jpg") || s.EndsWith(".png") || s.EndsWith(".jpeg"))
-                                      .Take(100) // 최대 100개
+                                      .Take(100)
                                       .ToArray();
 
             if (files.Length == 0) { WpfMessageBox.Show("이미지가 없습니다."); return; }
 
-            // 2. 정답 클래스 확인 (일단 'unripe'로 가정, 필요시 수정 가능)
-            string targetClass = "unripe"; // ★ 테스트할 폴더의 정답 클래스 (예: unripe, ripe 등)
+            string targetClassEnglish = "ripe";
+            if (WpfMessageBox.Show($"'{folderPath}' 폴더의 이미지 {files.Length}장을\n[ 정답: {targetClassEnglish} ]로 가정하고 테스트합니까?",
+                "검증", MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
 
-            if (WpfMessageBox.Show($"'{folderPath}' 폴더의 이미지 {files.Length}장을 \n'{targetClass}'(으)로 가정하고 테스트를 시작할까요?",
-                "성능 검증 시작", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+            string targetClassKorean = _translationMap.ContainsKey(targetClassEnglish) ? _translationMap[targetClassEnglish] : targetClassEnglish;
 
-            // 3. 통계 변수 초기화
             int correctCount = 0;
-            List<double> rMeans = new(), gMeans = new(), bMeans = new();
-            List<double> edgeMeans = new(), blobMeans = new();
+            int validImages = 0;
+
+            // 값들을 리스트에 저장
+            List<byte> listR = new List<byte>();
+            List<byte> listG = new List<byte>();
+            List<byte> listB = new List<byte>();
+            List<double> listEdge = new List<double>();
+            List<int> listBlobs = new List<int>();
+            List<string> allDefectTypes = new List<string>(); // 발견된 모든 결함 이름 수집
+
             string originalTitle = this.Title;
 
-            // 4. 연속 실행 (화면에 보여주면서)
             for (int i = 0; i < files.Length; i++)
             {
-                string file = files[i];
                 try
                 {
                     this.Title = $"[{i + 1}/{files.Length}] 테스트 진행 중...";
+                    await ProcessImageAsync(files[i]);
+                    await Task.Delay(20);
 
-                    // (1) 화면에 표시 및 분석 실행
-                    // ProcessImageAsync 내부에서 RunFullPipelineAsync가 호출되어 화면을 갱신합니다.
-                    await ProcessImageAsync(file);
-
-                    // (2) 잠시 대기 (사용자가 화면 변화를 볼 수 있도록)
-                    await Task.Delay(200); // 0.2초 대기 (속도 조절 가능)
-
-                    // (3) 현재 분석 결과 가져오기 (화면 갱신 후 저장된 이력의 첫 번째 아이템)
                     if (_analysisHistory.Count > 0)
                     {
-                        var result = _analysisHistory[0];
-
-                        // 정답 체크 (결과 텍스트에 정답 클래스 이름이 포함되어 있는지 확인)
-                        // 예: "미숙" 텍스트가 포함되어 있으면 정답 처리
-                        string targetKorean = _translationMap.FirstOrDefault(x => x.Value.Contains("미숙")).Value ?? "미숙"; // 예시
-                        if (result.RipenessResultText.Contains("미숙") || result.RipenessResultText.Contains("unripe")) // 단순 비교
+                        var lastResult = _analysisHistory[0];
+                        if (lastResult.FileName == System.IO.Path.GetFileName(files[i]))
                         {
-                            correctCount++;
+                            validImages++;
+
+                            if (lastResult.RipenessResultText == targetClassKorean)
+                                correctCount++;
+
+                            listR.Add(lastResult.ValR);
+                            listG.Add(lastResult.ValG);
+                            listB.Add(lastResult.ValB);
+                            listEdge.Add(lastResult.ValEdge);
+                            listBlobs.Add(lastResult.ValBlobCount);
+                            allDefectTypes.AddRange(lastResult.ValDefectTypes); // 결함 종류 누적
                         }
                     }
-
-                    // (4) RGB/Edge/Blob 특성 계산 (별도로 수행)
-                    using (var image = SixLabors.ImageSharp.Image.Load<Rgb24>(file))
-                    {
-                        var features = CalculateFeatures(image);
-                        rMeans.Add(features.MeanR); gMeans.Add(features.MeanG); bMeans.Add(features.MeanB);
-                        edgeMeans.Add(features.EdgeDensity); blobMeans.Add(features.BlobAreaRatio);
-                    }
                 }
-                catch { /* 개별 오류 무시 */ }
+                catch { }
             }
 
             this.Title = originalTitle;
 
-            // 5. 최종 리포트 출력
-            double accuracy = (double)correctCount / files.Length * 100.0;
+            double accuracy = validImages > 0 ? (double)correctCount / validImages * 100.0 : 0;
+            if (validImages == 0) { WpfMessageBox.Show("분석된 이미지가 없습니다."); return; }
 
-            string report = $"[테스트 완료]\n" +
-                            $"-----------------------------\n" +
-                            $"📂 폴더: {System.IO.Path.GetFileName(folderPath)}\n" +
-                            $"🎯 정확도: {accuracy:F2}% ({correctCount}/{files.Length})\n" +
-                            $"-----------------------------\n" +
-                            $"📊 평균 특성값:\n" +
-                            $" - R: {rMeans.Average():F1}\n" +
-                            $" - G: {gMeans.Average():F1}\n" +
-                            $" - B: {bMeans.Average():F1}\n" +
-                            $" - Edge: {edgeMeans.Average():F2}%\n" +
-                            $" - Blob: {blobMeans.Average():F2}%";
-
-            WpfMessageBox.Show(report, "성능 검증 결과", MessageBoxButton.OK, MessageBoxImage.Information);
-        }
-
-        // [신규] 이미지 특성 계산 함수
-        private ImageFeatures CalculateFeatures(Image<Rgb24> image)
-        {
-            long sumR = 0, sumG = 0, sumB = 0, edgePixels = 0, blobPixels = 0;
-            int totalPixels = image.Width * image.Height;
-
-            image.ProcessPixelRows(accessor =>
+            // [그래프 그리기 함수]
+            string DrawHistogram(string name, List<byte> values, int step)
             {
-                for (int y = 0; y < image.Height; y++)
+                StringBuilder sb = new StringBuilder();
+                sb.AppendLine($"--- [{name} 분포 (간격:{step})] ---");
+
+                for (int start = 0; start <= 250; start += step)
                 {
-                    var row = accessor.GetRowSpan(y);
-                    for (int x = 0; x < image.Width; x++)
+                    int end = (start + step - 1) > 255 ? 255 : (start + step - 1);
+                    int count = values.Count(v => v >= start && v <= end);
+
+                    if (count > 0)
                     {
-                        var p = row[x];
-                        sumR += p.R; sumG += p.G; sumB += p.B;
-                        if (p.R < 60 && p.G < 60 && p.B < 60) blobPixels++;
+                        string bar = new string('■', Math.Min(count, 20));
+                        sb.AppendLine($" {start:D3}~{end:D3}: {bar} ({count})");
                     }
                 }
-            });
-
-            using (var edgeImage = image.Clone(x => x.DetectEdges()))
-            {
-                edgeImage.ProcessPixelRows(accessor =>
-                {
-                    for (int y = 0; y < edgeImage.Height; y++)
-                    {
-                        var row = accessor.GetRowSpan(y);
-                        for (int x = 0; x < edgeImage.Width; x++)
-                        {
-                            if (row[x].R > 50) edgePixels++;
-                        }
-                    }
-                });
+                return sb.ToString();
             }
 
-            return new ImageFeatures
+            string DrawEdgeHistogram(List<double> values)
             {
-                MeanR = (double)sumR / totalPixels,
-                MeanG = (double)sumG / totalPixels,
-                MeanB = (double)sumB / totalPixels,
-                EdgeDensity = (double)edgePixels / totalPixels * 100.0,
-                BlobAreaRatio = (double)blobPixels / totalPixels * 100.0
-            };
+                StringBuilder sb = new StringBuilder();
+                sb.AppendLine($"--- [Edge(거칠기) 분포] ---");
+                int[] ranges = { 0, 10, 20, 30, 40, 50, 100 };
+                for (int j = 0; j < ranges.Length - 1; j++)
+                {
+                    int s = ranges[j];
+                    int e = ranges[j + 1];
+                    int count = values.Count(v => v >= s && v < e);
+                    if (count > 0)
+                    {
+                        string bar = new string('■', Math.Min(count, 20));
+                        sb.AppendLine($" {s:D2} ~ {e:D2} : {bar} ({count})");
+                    }
+                }
+                return sb.ToString();
+            }
+
+            // [리포트 생성]
+            StringBuilder report = new StringBuilder();
+            report.AppendLine($"[ 종합 성능 결과 리포트 ]");
+            report.AppendLine($"----------------------------------------");
+            report.AppendLine($"📂 폴더: {System.IO.Path.GetFileName(folderPath)}");
+            report.AppendLine($"🎯 총 {validImages}장 분석 완료");
+            report.AppendLine($"✅ 정확도: {accuracy:F1}% ({correctCount}/{validImages})");
+            report.AppendLine($"----------------------------------------");
+
+            report.AppendLine($"📊 [기본 통계]");
+            report.AppendLine($" R 평균: {listR.Average(v => (double)v):F0} (Min:{listR.Min()} ~ Max:{listR.Max()})");
+            report.AppendLine($" G 평균: {listG.Average(v => (double)v):F0} (Min:{listG.Min()} ~ Max:{listG.Max()})");
+            report.AppendLine($" B 평균: {listB.Average(v => (double)v):F0} (Min:{listB.Min()} ~ Max:{listB.Max()})");
+            report.AppendLine($" Edge : {listEdge.Average():F1} (Min:{listEdge.Min():F1} ~ Max:{listEdge.Max():F1})");
+
+            // Blob 통계 상세화
+            report.AppendLine($" Blob : 평균 {listBlobs.Average():F1}개 발견 (최대 {listBlobs.Max()}개)");
+            report.AppendLine($"----------------------------------------");
+
+            // 20 단위 히스토그램
+            report.AppendLine(DrawHistogram("Red", listR, 20));
+            report.AppendLine(DrawHistogram("Green", listG, 20));
+            report.AppendLine(DrawHistogram("Blue", listB, 20));
+            report.AppendLine(DrawEdgeHistogram(listEdge));
+
+            // [수정] Blob 그래프 - 이미지 수 기준
+            report.AppendLine("--- [Blob(결함) 발견 이미지 분포] ---");
+            var blobGroups = listBlobs.GroupBy(x => x).OrderBy(g => g.Key);
+            foreach (var g in blobGroups)
+            {
+                string bar = new string('■', Math.Min(g.Count(), 20));
+                // "3개 발견된 이미지: 5장" 형태로 명확히 표시
+                report.AppendLine($" {g.Key}개 발견된 사진: {bar} ({g.Count()}장)");
+            }
+
+            // [추가] 결함 유형별 총 개수 (누적)
+            report.AppendLine("");
+            report.AppendLine("--- [발견된 결함 종류 총합] ---");
+            if (allDefectTypes.Count > 0)
+            {
+                var typeGroups = allDefectTypes.GroupBy(x => x).OrderByDescending(g => g.Count());
+                foreach (var g in typeGroups)
+                {
+                    report.AppendLine($" • {g.Key}: 총 {g.Count()}개");
+                }
+            }
+            else
+            {
+                report.AppendLine(" • 발견된 결함 없음");
+            }
+
+            WpfMessageBox.Show(report.ToString(), "상세 분석 결과", MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
-        // --------------------------------------------------------------------
-        // 기존 단일 시연 로직 (유지)
-        // --------------------------------------------------------------------
         private async void LoadImageButton_Click(object sender, RoutedEventArgs e)
         {
             if (_classificationSession == null) return;
@@ -323,18 +350,20 @@ namespace MangoClassifierWPF
                 SourceImage.Source = selectedItem.FullImageSource;
 
                 DetectionCanvas.Children.Clear();
-                if (selectedItem.MangoDetections != null)
-                    foreach (var box in selectedItem.MangoDetections) DrawBox(box.Box, Brushes.OrangeRed, 3, selectedItem.OriginalImageWidth, selectedItem.OriginalImageHeight);
+
+                DrawBox(selectedItem.AnalysisBox, Brushes.Cyan, 2, selectedItem.OriginalImageWidth, selectedItem.OriginalImageHeight);
+
                 if (selectedItem.DefectDetections != null)
                     foreach (var box in selectedItem.DefectDetections) DrawBox(box.Box, Brushes.Yellow, 2, selectedItem.OriginalImageWidth, selectedItem.OriginalImageHeight);
 
                 DetectionResultTextBlock.Text = selectedItem.DetectionResultText;
-                DetectedSizeTextBlock.Text = selectedItem.DetectedSizeText;
                 RipenessResultTextBlock.Text = selectedItem.RipenessResultText;
                 VarietyResultTextBlock.Text = selectedItem.VarietyResultText;
                 ConfidenceTextBlock.Text = selectedItem.ConfidenceText;
 
-                DetectionResultTextBlock.Foreground = Brushes.Orange;
+                DetectedSizeTextBlock.Text = selectedItem.DetectedSizeText;
+
+                DetectionResultTextBlock.Foreground = Brushes.LightSkyBlue;
                 RipenessResultTextBlock.Foreground = Brushes.DodgerBlue;
 
                 FinalDecisionTextBlock.Text = selectedItem.FinalDecisionText;
@@ -344,7 +373,7 @@ namespace MangoClassifierWPF
                 DefectResultsTextBlock.Text = selectedItem.DefectListText;
                 DefectResultsTextBlock.Foreground = selectedItem.DefectListForeground;
 
-                PerfDetectionTime.Text = $"{selectedItem.PerfDetectionTimeMs} ms";
+                PerfDetectionTime.Text = "미사용";
                 PerfClassificationTime.Text = $"{selectedItem.PerfClassificationTimeMs} ms";
                 PerfVarietyTime.Text = $"{selectedItem.PerfVarietyTimeMs} ms";
                 PerfDefectTime.Text = $"{selectedItem.PerfDefectTimeMs} ms";
@@ -365,7 +394,7 @@ namespace MangoClassifierWPF
 
                 WelcomePanel.Visibility = Visibility.Collapsed;
                 ImagePreviewPanel.Visibility = Visibility.Visible;
-                DetectionResultTextBlock.Text = "탐지 중...";
+                DetectionResultTextBlock.Text = "분석 중...";
 
                 var sw = Stopwatch.StartNew();
                 await RunFullPipelineAsync(imagePath, bitmap, sw);
@@ -389,7 +418,7 @@ namespace MangoClassifierWPF
             VarietyResultTextBlock.Text = "---";
             ConfidenceTextBlock.Text = "---";
             DefectResultsTextBlock.Text = "---"; FinalDecisionTextBlock.Text = "---";
-            PerfTotalTime.Text = "---"; PerfDetectionTime.Text = "---"; PerfClassificationTime.Text = "---"; PerfVarietyTime.Text = "---"; PerfDefectTime.Text = "---";
+            PerfTotalTime.Text = "---"; PerfDetectionTime.Text = "미사용"; PerfClassificationTime.Text = "---"; PerfVarietyTime.Text = "---"; PerfDefectTime.Text = "---";
         }
 
         private void ClearAllUI()
@@ -400,35 +429,23 @@ namespace MangoClassifierWPF
 
         private async Task RunFullPipelineAsync(string imagePath, BitmapImage bitmap, Stopwatch totalStopwatch)
         {
-            // 1. 망고 탐지 (640)
-            var (detResults, detTime) = await RunDetectionAsync(imagePath);
-            PerfDetectionTime.Text = $"{detTime} ms";
+            int imgW = bitmap.PixelWidth;
+            int imgH = bitmap.PixelHeight;
 
-            DetectionResult? topMango = null;
-            if (detResults != null && detResults.Any())
-            {
-                var mangos = detResults.Where(d => d.ClassName == "Mango").OrderByDescending(d => d.Confidence).ToList();
-                if (mangos.Any()) topMango = mangos.First();
-            }
+            int boxW = (int)(imgW * 0.55);
+            int boxH = (int)(imgH * 0.55);
+            int startX = (imgW - boxW) / 2;
+            int startY = (imgH - boxH) / 2;
 
-            if (topMango == null)
-            {
-                DetectionResultTextBlock.Text = "망고 없음";
-                totalStopwatch.Stop();
-                PerfTotalTime.Text = $"{totalStopwatch.ElapsedMilliseconds} ms";
-                return;
-            }
+            Rectangle cropBox = new Rectangle(startX, startY, boxW, boxH);
 
-            string koDetName = _detectionTranslationMap.GetValueOrDefault(topMango.ClassName, topMango.ClassName);
-            DetectionResultTextBlock.Text = $"{koDetName} ({topMango.Confidence * 100:F1}%)";
-            DetectionResultTextBlock.Foreground = Brushes.Orange;
+            DetectionResultTextBlock.Text = "중앙 영역 분석";
+            DetectionResultTextBlock.Foreground = Brushes.LightSkyBlue;
 
             using (var originalImage = SixLabors.ImageSharp.Image.Load<Rgb24>(imagePath))
             {
-                var cropBox = topMango.Box;
-                cropBox.Intersect(new Rectangle(0, 0, originalImage.Width, originalImage.Height));
+                var (r, g, b, edgeScore) = AnalyzeCropFeatures(originalImage, cropBox);
 
-                // 병렬 실행
                 var clsTask = RunClassificationAsync(originalImage, cropBox);
                 var defTask = RunDefectDetectionAsync(originalImage, cropBox);
                 var varTask = RunVarietyClassificationAsync(originalImage, cropBox);
@@ -443,13 +460,12 @@ namespace MangoClassifierWPF
                 PerfDefectTime.Text = $"{defTime} ms";
                 PerfVarietyTime.Text = $"{varietyTime} ms";
 
-                // 결과 업데이트
                 RipenessResultTextBlock.Text = koClass;
                 VarietyResultTextBlock.Text = $"{varietyName} ({varietyConf * 100:F0}%)";
                 ConfidenceTextBlock.Text = $"{conf * 100:F2} %";
                 FullResultsListView.ItemsSource = scores.OrderByDescending(s => s.Confidence);
 
-                var decision = GetFinalDecision(enClass, defects, topMango.Box);
+                var decision = GetFinalDecision(enClass, defects);
                 FinalDecisionTextBlock.Text = decision.Decision;
                 FinalDecisionTextBlock.Foreground = decision.TextColor;
                 if (FinalDecisionTextBlock.Parent is Border db) db.Background = decision.BackgroundColor;
@@ -472,8 +488,13 @@ namespace MangoClassifierWPF
                     DefectResultsTextBlock.Foreground = Brushes.LightGreen;
                 }
 
-                string estWeight = EstimateWeightCategory(topMango.Box);
-                DetectedSizeTextBlock.Text = estWeight;
+                string statsText = $"[특성 데이터]\n" +
+                                   $"분석: 중앙 {boxW}x{boxH}\n" +
+                                   $"RGB: {r}, {g}, {b}\n" +
+                                   $"Edge: {edgeScore:F1} (거칠기)\n" +
+                                   $"Blob: {defects.Count}개 (결함)";
+
+                DetectedSizeTextBlock.Text = statsText;
 
                 if (_cumulativeStats.ContainsKey(koClass))
                 {
@@ -481,7 +502,7 @@ namespace MangoClassifierWPF
                     UpdateStatsDisplay();
                 }
 
-                DrawBox(topMango.Box, Brushes.OrangeRed, 3, originalImage.Width, originalImage.Height);
+                DrawBox(cropBox, Brushes.Cyan, 2, originalImage.Width, originalImage.Height);
                 foreach (var d in defects) DrawBox(d.Box, Brushes.Yellow, 2, originalImage.Width, originalImage.Height);
 
                 totalStopwatch.Stop();
@@ -494,10 +515,22 @@ namespace MangoClassifierWPF
                     OriginalImageWidth = bitmap.PixelWidth,
                     OriginalImageHeight = bitmap.PixelHeight,
                     FileName = System.IO.Path.GetFileName(imagePath),
-                    MangoDetections = new List<DetectionResult> { topMango },
+
+                    AnalysisBox = cropBox,
                     DefectDetections = defects,
-                    DetectionResultText = DetectionResultTextBlock.Text,
-                    DetectedSizeText = estWeight,
+                    DetectionResultText = "중앙 영역 분석",
+
+                    DetectedSizeText = statsText,
+
+                    ValR = r,
+                    ValG = g,
+                    ValB = b,
+                    ValEdge = edgeScore,
+                    ValBlobCount = defects.Count,
+
+                    // [수정] 결함 종류 리스트 저장 (한글 이름으로 변환해서)
+                    ValDefectTypes = defects.Select(d => _defectTranslationMap.GetValueOrDefault(d.ClassName, d.ClassName)).ToList(),
+
                     RipenessResultText = koClass,
                     VarietyResultText = VarietyResultTextBlock.Text,
                     ConfidenceText = ConfidenceTextBlock.Text,
@@ -508,7 +541,6 @@ namespace MangoClassifierWPF
                     DefectListText = DefectResultsTextBlock.Text,
                     DefectListForeground = DefectResultsTextBlock.Foreground,
                     PerfTotalTimeMs = totalStopwatch.ElapsedMilliseconds,
-                    PerfDetectionTimeMs = detTime,
                     PerfClassificationTimeMs = clsTime,
                     PerfVarietyTimeMs = varietyTime,
                     PerfDefectTimeMs = defTime
@@ -519,22 +551,49 @@ namespace MangoClassifierWPF
             }
         }
 
-        // --- 모델 실행 함수들 ---
-
-        private async Task<(List<DetectionResult>, long)> RunDetectionAsync(string imagePath)
+        private (byte R, byte G, byte B, double EdgeScore) AnalyzeCropFeatures(Image<Rgb24> original, Rectangle cropBox)
         {
-            if (_detectionSession == null) throw new Exception("Detection Null");
-            return await Task.Run(() => {
-                var sw = Stopwatch.StartNew();
-                using var image = SixLabors.ImageSharp.Image.Load<Rgb24>(imagePath);
-                var (input, scale, padX, padY) = Preprocess(image, DetectionInputSize);
-                var inputs = new List<NamedOnnxValue> { NamedOnnxValue.CreateFromTensor("images", input) };
-                using var results = _detectionSession.Run(inputs);
-                var output = results.First().AsTensor<float>();
-                var list = ParseYoloOutput(output, _detectionClassNames, 0.5f, scale, padX, padY, 0, 0);
-                sw.Stop();
-                return (list, sw.ElapsedMilliseconds);
+            using var crop = original.Clone(x => x.Crop(cropBox));
+
+            double rSum = 0, gSum = 0, bSum = 0;
+            int pixelCount = crop.Width * crop.Height;
+
+            crop.ProcessPixelRows(accessor =>
+            {
+                for (int y = 0; y < accessor.Height; y++)
+                {
+                    var row = accessor.GetRowSpan(y);
+                    for (int x = 0; x < accessor.Width; x++)
+                    {
+                        rSum += row[x].R;
+                        gSum += row[x].G;
+                        bSum += row[x].B;
+                    }
+                }
             });
+
+            byte avgR = (byte)(rSum / pixelCount);
+            byte avgG = (byte)(gSum / pixelCount);
+            byte avgB = (byte)(bSum / pixelCount);
+
+            using var edgeImage = crop.Clone(x => x.DetectEdges());
+            double edgeSum = 0;
+
+            edgeImage.ProcessPixelRows(accessor =>
+            {
+                for (int y = 0; y < accessor.Height; y++)
+                {
+                    var row = accessor.GetRowSpan(y);
+                    for (int x = 0; x < accessor.Width; x++)
+                    {
+                        edgeSum += (row[x].R + row[x].G + row[x].B) / 3.0;
+                    }
+                }
+            });
+
+            double edgeScore = edgeSum / pixelCount;
+
+            return (avgR, avgG, avgB, edgeScore);
         }
 
         private async Task<(List<DetectionResult>, long)> RunDefectDetectionAsync(Image<Rgb24> original, Rectangle cropBox)
@@ -665,7 +724,7 @@ namespace MangoClassifierWPF
             return result;
         }
 
-        private (string Decision, Brush TextColor, Brush BackgroundColor) GetFinalDecision(string ripeness, List<DetectionResult> defects, Rectangle box)
+        private (string Decision, Brush TextColor, Brush BackgroundColor) GetFinalDecision(string ripeness, List<DetectionResult> defects)
         {
             if (defects.Any(d => d.ClassName == "scab")) return ("판매 금지 (병해)", TEXT_COLOR, REJECT_COLOR);
             if (ripeness == "un-healthy") return ("판매 금지 (과숙)", TEXT_COLOR, REJECT_COLOR);
@@ -674,15 +733,6 @@ namespace MangoClassifierWPF
             bool hasBrown = defects.Any(d => d.ClassName == "brown-spot");
             if (ripeness == "ripe" || ripeness == "half-ripe-stage") return ("판매 가능", TEXT_COLOR, PASS_COLOR);
             return ("보류", TEXT_COLOR, HOLD_COLOR);
-        }
-
-        private string EstimateWeightCategory(Rectangle box)
-        {
-            long area = box.Width * box.Height;
-            if (area < 50000) return "소";
-            if (area < 100000) return "중";
-            if (area < 150000) return "대";
-            return "특대";
         }
 
         private void DrawBox(Rectangle box, Brush brush, double thickness, double orgW, double orgH)
