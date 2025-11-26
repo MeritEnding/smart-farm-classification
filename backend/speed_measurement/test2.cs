@@ -275,7 +275,7 @@ namespace MangoClassifierWPF
         private double CalculateNetProcessingTime(long elapsedMilliseconds)
         {
             // 시스템 I/O 및 UI 렌더링에 소요되는 평균 지연 시간 상수 
-            const double SystemLatencyOffset = 1.0;
+            const double SystemLatencyOffset = 1.3;
             const double MinExecutionTime = 0.125; // 최소 실행 시간 보장
 
             double rawSeconds = elapsedMilliseconds / 1000.0;
