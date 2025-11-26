@@ -26,12 +26,12 @@ using Microsoft.ML.OnnxRuntime.Tensors;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
-using SixLabors.ImageSharp.Drawing.Processing; // DrawImage를 위해 필요
+using SixLabors.ImageSharp.Drawing.Processing;
 
-// SixLabors와 WPF간의 모호함 해결을 위한 별칭
+// 별칭
 using ImageSharpRectangle = SixLabors.ImageSharp.Rectangle;
 using ImageSharpPoint = SixLabors.ImageSharp.Point;
-using ImageSharpSize = SixLabors.ImageSharp.Size;
+// SixLabors.ImageSharp.Image<Rgb24> 사용을 위해 별칭 제거
 
 namespace MangoClassifierWPF
 {
@@ -39,9 +39,10 @@ namespace MangoClassifierWPF
     {
         public string FileName { get; set; } = "";
         public BitmapImage? CroppedThumbnail { get; set; }
-        public string SimulatedSize { get; set; } = "";
+        public string SimulatedSize { get; set; } = ""; // 정답(Ground Truth)
         public string MeasuredArea { get; set; } = "";
-        public string ResultGrade { get; set; } = "";
+        public string ResultGrade { get; set; } = "";   // 예측(Prediction)
+        public string AccuracyStatus { get; set; } = ""; // 정답/오답
         public WpfBrush ResultColor { get; set; } = WpfBrushes.White;
     }
 
@@ -187,7 +188,7 @@ namespace MangoClassifierWPF
         }
 
         // =================================================================================
-        // [수정됨] 크기 시뮬레이션 테스트 (객체 기반 리사이징 적용)
+        // [수정됨] 대규모 크기 시뮬레이션 테스트 (폴더 단위, 정확도 산출)
         // =================================================================================
         private async void SizeTestButton_Click(object sender, RoutedEventArgs e)
         {
@@ -196,129 +197,151 @@ namespace MangoClassifierWPF
             OpenFileDialog openFileDialog = new OpenFileDialog
             {
                 Filter = "이미지 파일 (*.jpg;*.jpeg;*.png)|*.jpg;*.jpeg;*.png",
-                Title = "크기 테스트용 샘플 이미지 1개를 선택하세요 (망고가 잘 보이는 사진 권장)"
+                Title = "테스트할 폴더 내의 이미지 하나를 선택하세요 (100개 파일 테스트)"
             };
 
             if (openFileDialog.ShowDialog() != true) return;
 
-            string imagePath = openFileDialog.FileName;
+            string? folderPath = IOPath.GetDirectoryName(openFileDialog.FileName);
+            if (folderPath == null) return;
+
+            var imageFiles = System.IO.Directory.GetFiles(folderPath)
+                                      .Where(f => f.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) ||
+                                                  f.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase) ||
+                                                  f.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
+                                      .Take(100)
+                                      .ToList();
+
+            if (imageFiles.Count == 0) { MessageBox.Show("이미지 파일이 없습니다."); return; }
+
             WelcomePanel.Visibility = Visibility.Collapsed;
             ImagePreviewPanel.Visibility = Visibility.Visible;
-            SizeTestStatusTextBlock.Text = "1단계: 초기 객체 탐지 중...";
+            SizeTestStatusTextBlock.Text = "대규모 시뮬레이션 진행 중...";
 
-            // 1. 초기 탐지 실행하여 기준 망고 찾기
-            using var originalImage = SixLabors.ImageSharp.Image.Load<Rgb24>(imagePath);
-            var initialDetections = await RunDetectionAsync(imagePath);
-
-            if (initialDetections == null || !initialDetections.Any())
+            // [시뮬레이션 목표 면적 정의 - 정확도 향상을 위한 중간값 설정]
+            // 기준: 소(<5만), 중(5만~9만), 대(9만~13만), 특대(>13만)
+            var testTargets = new (string Grade, double TargetArea)[]
             {
-                MessageBox.Show("선택한 이미지에서 망고를 찾을 수 없습니다. 다른 이미지를 선택해주세요.");
-                ResetToWelcomeState();
-                return;
-            }
-
-            // 가장 신뢰도 높은 객체를 기준으로 설정
-            var baseDetection = initialDetections.OrderByDescending(r => r.Confidence).First();
-            var baseBox = baseDetection.Box;
-            baseBox.Intersect(new ImageSharpRectangle(0, 0, originalImage.Width, originalImage.Height));
-
-            if (baseBox.Width <= 0 || baseBox.Height <= 0) { MessageBox.Show("객체 영역 오류."); ResetToWelcomeState(); return; }
-
-            // 기준 망고 이미지 추출 (이것을 리사이징해서 사용)
-            using var baseMangoCrop = originalImage.Clone(x => x.Crop(baseBox));
-            double aspectRatio = (double)baseBox.Width / baseBox.Height;
-
-            SizeTestStatusTextBlock.Text = "2단계: 크기별 시뮬레이션 진행 중...";
-
-            // [시뮬레이션 목표 면적 정의] - 제공된 표 기준 중간값 설정
-            // 소(<5만): 목표 40,000
-            // 중(5만~9만): 목표 70,000
-            // 대(9만~13만): 목표 110,000
-            // 특대(>13만): 목표 150,000
-            var testTargets = new (string Label, double TargetArea)[]
-            {
-                ("소 (Small)", 40000),
-                ("중 (Medium)", 70000),
-                ("대 (Large)", 110000),
-                ("특대 (Extra)", 150000)
+                ("소", 40000),  // 5만 미만 안전권
+                ("중", 70000),  // 5만~9만 정중앙
+                ("대", 110000), // 9만~13만 정중앙
+                ("특대", 150000) // 13만 초과 안전권
             };
 
             List<TestLogItem> sizeLogs = new List<TestLogItem>();
-            int canvasSize = 640; // 시뮬레이션 배경 캔버스 크기 (모델 입력 크기와 동일하게 설정)
+            int totalTests = 0;
+            int totalCorrect = 0;
 
-            foreach (var target in testTargets)
+            // 등급별 통계 (Key: 등급명, Value: (정답수, 전체수))
+            Dictionary<string, (int Correct, int Total)> gradeStats = new Dictionary<string, (int, int)>
             {
-                // 목표 면적에 맞는 새로운 너비/높이 계산 (비율 유지)
-                int newHeight = (int)Math.Sqrt(target.TargetArea / aspectRatio);
-                int newWidth = (int)(newHeight * aspectRatio);
+                { "소", (0, 0) }, { "중", (0, 0) }, { "대", (0, 0) }, { "특대", (0, 0) }
+            };
 
-                // 캔버스 범위 체크 및 조정
-                if (newWidth > canvasSize) { newWidth = canvasSize; newHeight = (int)(newWidth / aspectRatio); }
-                if (newHeight > canvasSize) { newHeight = canvasSize; newWidth = (int)(newHeight * aspectRatio); }
+            int canvasSize = 640;
 
-                // 2. 시뮬레이션 이미지 생성 (검은 배경 중앙에 리사이징된 망고 배치)
-                using (var simulationCanvas = new SixLabors.ImageSharp.Image<Rgb24>(canvasSize, canvasSize, SixLabors.ImageSharp.Color.Black))
-                using (var resizedMango = baseMangoCrop.Clone(x => x.Resize(newWidth, newHeight)))
+            foreach (var imagePath in imageFiles)
+            {
+                try
                 {
-                    // 중앙 정렬 좌표 계산
-                    int posX = (canvasSize - newWidth) / 2;
-                    int posY = (canvasSize - newHeight) / 2;
-                    simulationCanvas.Mutate(x => x.DrawImage(resizedMango, new ImageSharpPoint(posX, posY), 1f));
+                    // 1. 원본 로드 및 기준 객체 탐지
+                    using var originalImage = SixLabors.ImageSharp.Image.Load<Rgb24>(imagePath);
+                    var initialDetections = await RunDetectionAsync(imagePath);
 
-                    // 임시 파일 저장
-                    string tempPath = IOPath.Combine(IOPath.GetTempPath(), $"sim_{target.Label.Split(' ')[0]}.jpg");
-                    simulationCanvas.Save(tempPath);
+                    if (initialDetections == null || !initialDetections.Any()) continue; // 탐지 실패시 건너뜀
 
-                    // UI 업데이트
-                    BitmapImage bitmap = new BitmapImage();
-                    bitmap.BeginInit();
-                    bitmap.UriSource = new Uri(tempPath, UriKind.Absolute);
-                    bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                    bitmap.EndInit();
-                    bitmap.Freeze();
+                    var baseDetection = initialDetections.OrderByDescending(r => r.Confidence).First();
+                    var baseBox = baseDetection.Box;
+                    baseBox.Intersect(new ImageSharpRectangle(0, 0, originalImage.Width, originalImage.Height));
 
-                    SourceImage.Source = bitmap;
-                    PreviewGrid.Width = canvasSize;
-                    PreviewGrid.Height = canvasSize;
-                    await Task.Delay(300); // 시각적 확인을 위한 짧은 딜레이
+                    if (baseBox.Width <= 0 || baseBox.Height <= 0) continue;
 
-                    // 3. 재분석 실행
-                    var (decisionText, defects, croppedBitmap) = await RunFullPipelineAsync(tempPath, bitmap);
+                    // 기준 망고 이미지 추출
+                    using var baseMangoCrop = originalImage.Clone(x => x.Crop(baseBox));
+                    double aspectRatio = (double)baseBox.Width / baseBox.Height;
 
-                    // 4. 결과 수집
-                    string detectedSizeText = DetectedSizeTextBlock.Text;
-                    string detectedGrade = detectedSizeText.Split(' ')[0];
-
-                    WpfBrush color = WpfBrushes.Gray;
-                    if (detectedGrade == "소") color = WpfBrushes.LightGreen;
-                    else if (detectedGrade == "중") color = WpfBrushes.SkyBlue;
-                    else if (detectedGrade == "대") color = WpfBrushes.Orange;
-                    else if (detectedGrade == "특대") color = WpfBrushes.Tomato;
-
-                    sizeLogs.Add(new TestLogItem
+                    // 2. 4가지 크기로 시뮬레이션
+                    foreach (var target in testTargets)
                     {
-                        FileName = $"목표: {target.Label}",
-                        CroppedThumbnail = croppedBitmap,
-                        SimulatedSize = target.Label,
-                        MeasuredArea = $"약 {newWidth * newHeight:N0} px²", // 실제 만들어진 면적 표시
-                        ResultGrade = detectedSizeText,
-                        ResultColor = color
-                    });
+                        totalTests++;
+
+                        // 목표 면적에 맞게 리사이징
+                        int newHeight = (int)Math.Sqrt(target.TargetArea / aspectRatio);
+                        int newWidth = (int)(newHeight * aspectRatio);
+                        if (newWidth > canvasSize) { newWidth = canvasSize; newHeight = (int)(newWidth / aspectRatio); }
+                        if (newHeight > canvasSize) { newHeight = canvasSize; newWidth = (int)(newHeight * aspectRatio); }
+
+                        using (var simulationCanvas = new SixLabors.ImageSharp.Image<Rgb24>(canvasSize, canvasSize, SixLabors.ImageSharp.Color.Black))
+                        using (var resizedMango = baseMangoCrop.Clone(x => x.Resize(newWidth, newHeight)))
+                        {
+                            // 중앙 배치
+                            int posX = (canvasSize - newWidth) / 2;
+                            int posY = (canvasSize - newHeight) / 2;
+                            simulationCanvas.Mutate(x => x.DrawImage(resizedMango, new ImageSharpPoint(posX, posY), 1f));
+
+                            string tempPath = IOPath.Combine(IOPath.GetTempPath(), $"sim_{target.Grade}_{IOPath.GetFileName(imagePath)}");
+                            simulationCanvas.Save(tempPath);
+
+                            // 3. UI 업데이트 (빠르게 넘기기 위해 딜레이 최소화)
+                            BitmapImage bitmap = new BitmapImage();
+                            bitmap.BeginInit();
+                            bitmap.UriSource = new Uri(tempPath, UriKind.Absolute);
+                            bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                            bitmap.EndInit();
+                            bitmap.Freeze();
+
+                            SourceImage.Source = bitmap;
+                            PreviewGrid.Width = canvasSize; PreviewGrid.Height = canvasSize;
+                            await Task.Delay(5); // 최소한의 UI 갱신 시간
+
+                            // 4. 재분석
+                            var (decisionText, defects, croppedBitmap) = await RunFullPipelineAsync(tempPath, bitmap);
+
+                            // 5. 결과 검증
+                            string detectedSizeText = DetectedSizeTextBlock.Text; // 예: "소 (300g 미만)"
+                            string detectedGrade = detectedSizeText.Split(' ')[0]; // "소"
+
+                            bool isCorrect = (detectedGrade == target.Grade);
+
+                            // 통계 집계
+                            var currentStat = gradeStats[target.Grade];
+                            gradeStats[target.Grade] = (currentStat.Correct + (isCorrect ? 1 : 0), currentStat.Total + 1);
+                            if (isCorrect) totalCorrect++;
+
+                            // 로그 기록
+                            sizeLogs.Add(new TestLogItem
+                            {
+                                FileName = IOPath.GetFileName(imagePath),
+                                CroppedThumbnail = croppedBitmap,
+                                SimulatedSize = target.Grade,
+                                MeasuredArea = $"{newWidth * newHeight:N0} px²",
+                                ResultGrade = detectedGrade,
+                                AccuracyStatus = isCorrect ? "정답" : "오답",
+                                ResultColor = isCorrect ? WpfBrushes.LightGreen : WpfBrushes.Tomato
+                            });
+                        }
+                    }
+
+                    // 진행률 표시
+                    double progress = (double)totalTests / (imageFiles.Count * 4) * 100.0;
+                    SizeTestStatusTextBlock.Text = $"진행 중: {progress:F1}% ({totalTests}건 완료)";
                 }
+                catch { continue; } // 개별 파일 오류는 무시하고 계속 진행
             }
 
-            ShowSizeTestResultWindow(sizeLogs);
+            ShowSizeTestResultWindow(sizeLogs, totalTests, totalCorrect, gradeStats);
             SizeTestStatusTextBlock.Text = "테스트 완료";
         }
 
-        // [크기 테스트 결과 창]
-        private void ShowSizeTestResultWindow(List<TestLogItem> logs)
+        // [수정됨] 결과 창 - 통계 대시보드 추가
+        // [수정됨] 결과 창 - 통계 대시보드 추가
+        private void ShowSizeTestResultWindow(List<TestLogItem> logs, int totalCount, int correctCount, Dictionary<string, (int Correct, int Total)> gradeStats)
         {
             Window resultWindow = new Window
             {
-                Title = "크기 분류 테스트 결과 (객체 기반 시뮬레이션)",
-                Width = 1000,
-                Height = 600,
+                Title = "크기 분류 정확도 테스트 결과",
+                Width = 1100,
+                Height = 800,
                 WindowStartupLocation = WindowStartupLocation.CenterScreen,
                 Background = new SolidColorBrush(WpfColor.FromRgb(30, 30, 30)),
                 Foreground = WpfBrushes.White,
@@ -326,20 +349,59 @@ namespace MangoClassifierWPF
             };
 
             Grid rootGrid = new Grid { Margin = new Thickness(20) };
-            rootGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            rootGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-            rootGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            rootGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // 전체 통계
+            rootGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // 등급별 통계
+            rootGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) }); // 리스트
+            rootGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // 버튼
 
-            StackPanel headerPanel = new StackPanel();
-            headerPanel.Children.Add(new TextBlock { Text = "크기/중량 분류 시뮬레이션 결과", FontSize = 20, FontWeight = FontWeights.Bold, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 0, 0, 20) });
-            rootGrid.Children.Add(headerPanel);
-            Grid.SetRow(headerPanel, 0);
+            // 1. 전체 정확도
+            StackPanel totalPanel = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 0, 0, 20) };
+            double totalAccuracy = totalCount > 0 ? (double)correctCount / totalCount * 100.0 : 0;
 
-            DockPanel listPanel = new DockPanel();
-            TextBlock listHeader = new TextBlock { Text = "■ 상세 결과 내역 (실제 AI가 분석한 영역 확인)", FontSize = 16, FontWeight = FontWeights.Bold, Foreground = WpfBrushes.LightGray, Margin = new Thickness(0, 0, 0, 10) };
-            DockPanel.SetDock(listHeader, Dock.Top);
-            listPanel.Children.Add(listHeader);
+            TextBlock title = new TextBlock { Text = "종합 정확도 리포트", FontSize = 24, FontWeight = FontWeights.Bold, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 0, 0, 5) };
+            TextBlock score = new TextBlock
+            {
+                Text = $"{totalAccuracy:F1}% ({correctCount}/{totalCount})",
+                FontSize = 32,
+                FontWeight = FontWeights.Bold,
+                Foreground = totalAccuracy >= 90 ? WpfBrushes.LightGreen : WpfBrushes.Orange,
+                HorizontalAlignment = HorizontalAlignment.Center
+            };
+            totalPanel.Children.Add(title);
+            totalPanel.Children.Add(score);
+            rootGrid.Children.Add(totalPanel);
+            Grid.SetRow(totalPanel, 0);
 
+            // 2. 등급별 정확도 (Grid로 깔끔하게 배치)
+            Grid statsGrid = new Grid { Margin = new Thickness(0, 0, 0, 20) };
+            statsGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            statsGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            statsGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            statsGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+            string[] grades = { "소", "중", "대", "특대" };
+            for (int i = 0; i < 4; i++)
+            {
+                var stat = gradeStats[grades[i]];
+                double acc = stat.Total > 0 ? (double)stat.Correct / stat.Total * 100.0 : 0;
+
+                // [수정] 오류가 발생했던 'StackPanel card = ...' 라인을 삭제했습니다.
+
+                Border border = new Border { Background = new SolidColorBrush(WpfColor.FromRgb(50, 50, 50)), CornerRadius = new CornerRadius(5), Padding = new Thickness(10), Margin = new Thickness(5) };
+
+                StackPanel sp = new StackPanel();
+                sp.Children.Add(new TextBlock { Text = grades[i], FontSize = 16, FontWeight = FontWeights.Bold, HorizontalAlignment = HorizontalAlignment.Center, Foreground = WpfBrushes.LightGray });
+                sp.Children.Add(new TextBlock { Text = $"{acc:F1}%", FontSize = 20, FontWeight = FontWeights.Bold, HorizontalAlignment = HorizontalAlignment.Center, Foreground = acc >= 90 ? WpfBrushes.LightGreen : WpfBrushes.White });
+                sp.Children.Add(new TextBlock { Text = $"{stat.Correct}/{stat.Total}", FontSize = 12, HorizontalAlignment = HorizontalAlignment.Center, Foreground = WpfBrushes.Gray });
+
+                border.Child = sp;
+                statsGrid.Children.Add(border);
+                Grid.SetColumn(border, i);
+            }
+            rootGrid.Children.Add(statsGrid);
+            Grid.SetRow(statsGrid, 1);
+
+            // 3. 리스트 뷰
             ListView logListView = new ListView
             {
                 Background = WpfBrushes.Transparent,
@@ -352,21 +414,20 @@ namespace MangoClassifierWPF
 
             GridView gridView = new GridView();
 
-            GridViewColumn simCol = new GridViewColumn { Header = "시뮬레이션 목표", Width = 180 };
-            var simFactory = new FrameworkElementFactory(typeof(TextBlock));
-            simFactory.SetBinding(TextBlock.TextProperty, new Binding("FileName"));
-            simFactory.SetValue(TextBlock.ForegroundProperty, WpfBrushes.LightGray);
-            simFactory.SetValue(TextBlock.VerticalAlignmentProperty, VerticalAlignment.Center);
-            simCol.CellTemplate = new DataTemplate { VisualTree = simFactory };
+            // 파일명
+            GridViewColumn fileCol = new GridViewColumn { Header = "파일명", Width = 150 };
+            var fileFactory = new FrameworkElementFactory(typeof(TextBlock));
+            fileFactory.SetBinding(TextBlock.TextProperty, new Binding("FileName"));
+            fileFactory.SetValue(TextBlock.TextTrimmingProperty, TextTrimming.CharacterEllipsis);
+            fileFactory.SetValue(TextBlock.VerticalAlignmentProperty, VerticalAlignment.Center);
+            fileCol.CellTemplate = new DataTemplate { VisualTree = fileFactory };
 
-            GridViewColumn imageCol = new GridViewColumn { Header = "실제 분석 이미지 (Crop)", Width = 120 };
+            // 이미지
+            GridViewColumn imageCol = new GridViewColumn { Header = "분석 이미지", Width = 100 };
             var imageTemplate = new DataTemplate();
             var borderFactory = new FrameworkElementFactory(typeof(Border));
-            borderFactory.SetValue(Border.CornerRadiusProperty, new CornerRadius(4));
-            borderFactory.SetValue(Border.BorderBrushProperty, WpfBrushes.Gray);
-            borderFactory.SetValue(Border.BorderThicknessProperty, new Thickness(1));
-            borderFactory.SetValue(Border.WidthProperty, 100.0);
-            borderFactory.SetValue(Border.HeightProperty, 100.0);
+            borderFactory.SetValue(Border.WidthProperty, 80.0);
+            borderFactory.SetValue(Border.HeightProperty, 80.0);
             var imageFactory = new FrameworkElementFactory(typeof(System.Windows.Controls.Image));
             imageFactory.SetBinding(System.Windows.Controls.Image.SourceProperty, new Binding("CroppedThumbnail"));
             imageFactory.SetValue(System.Windows.Controls.Image.StretchProperty, Stretch.Uniform);
@@ -374,31 +435,52 @@ namespace MangoClassifierWPF
             imageTemplate.VisualTree = borderFactory;
             imageCol.CellTemplate = imageTemplate;
 
-            GridViewColumn areaCol = new GridViewColumn { Header = "생성된 픽셀 면적", Width = 140 };
+            // 정답(시뮬레이션)
+            GridViewColumn simCol = new GridViewColumn { Header = "정답 (목표)", Width = 100 };
+            var simFactory = new FrameworkElementFactory(typeof(TextBlock));
+            simFactory.SetBinding(TextBlock.TextProperty, new Binding("SimulatedSize"));
+            simFactory.SetValue(TextBlock.VerticalAlignmentProperty, VerticalAlignment.Center);
+            simFactory.SetValue(TextBlock.HorizontalAlignmentProperty, HorizontalAlignment.Center);
+            simFactory.SetValue(TextBlock.FontWeightProperty, FontWeights.Bold);
+            simCol.CellTemplate = new DataTemplate { VisualTree = simFactory };
+
+            // 예측(AI 결과)
+            GridViewColumn resCol = new GridViewColumn { Header = "AI 예측", Width = 100 };
+            var resFactory = new FrameworkElementFactory(typeof(TextBlock));
+            resFactory.SetBinding(TextBlock.TextProperty, new Binding("ResultGrade"));
+            resFactory.SetValue(TextBlock.VerticalAlignmentProperty, VerticalAlignment.Center);
+            resFactory.SetValue(TextBlock.HorizontalAlignmentProperty, HorizontalAlignment.Center);
+            resCol.CellTemplate = new DataTemplate { VisualTree = resFactory };
+
+            // 판정
+            GridViewColumn statCol = new GridViewColumn { Header = "판정", Width = 80 };
+            var statFactory = new FrameworkElementFactory(typeof(TextBlock));
+            statFactory.SetBinding(TextBlock.TextProperty, new Binding("AccuracyStatus"));
+            statFactory.SetBinding(TextBlock.ForegroundProperty, new Binding("ResultColor"));
+            statFactory.SetValue(TextBlock.VerticalAlignmentProperty, VerticalAlignment.Center);
+            statFactory.SetValue(TextBlock.HorizontalAlignmentProperty, HorizontalAlignment.Center);
+            statFactory.SetValue(TextBlock.FontWeightProperty, FontWeights.Bold);
+            statCol.CellTemplate = new DataTemplate { VisualTree = statFactory };
+
+            // 면적
+            GridViewColumn areaCol = new GridViewColumn { Header = "측정 면적", Width = 120 };
             var areaFactory = new FrameworkElementFactory(typeof(TextBlock));
             areaFactory.SetBinding(TextBlock.TextProperty, new Binding("MeasuredArea"));
             areaFactory.SetValue(TextBlock.VerticalAlignmentProperty, VerticalAlignment.Center);
             areaCol.CellTemplate = new DataTemplate { VisualTree = areaFactory };
 
-            GridViewColumn resCol = new GridViewColumn { Header = "AI 판정 결과", Width = 300 };
-            var resFactory = new FrameworkElementFactory(typeof(TextBlock));
-            resFactory.SetBinding(TextBlock.TextProperty, new Binding("ResultGrade"));
-            resFactory.SetBinding(TextBlock.ForegroundProperty, new Binding("ResultColor"));
-            resFactory.SetValue(TextBlock.FontWeightProperty, FontWeights.Bold);
-            resFactory.SetValue(TextBlock.FontSizeProperty, 14.0);
-            resFactory.SetValue(TextBlock.VerticalAlignmentProperty, VerticalAlignment.Center);
-            resCol.CellTemplate = new DataTemplate { VisualTree = resFactory };
-
-            gridView.Columns.Add(simCol);
+            gridView.Columns.Add(fileCol);
             gridView.Columns.Add(imageCol);
-            gridView.Columns.Add(areaCol);
+            gridView.Columns.Add(simCol);
             gridView.Columns.Add(resCol);
+            gridView.Columns.Add(statCol);
+            gridView.Columns.Add(areaCol);
             logListView.View = gridView;
 
-            listPanel.Children.Add(logListView);
-            rootGrid.Children.Add(listPanel);
-            Grid.SetRow(listPanel, 1);
+            rootGrid.Children.Add(logListView);
+            Grid.SetRow(logListView, 2);
 
+            // 닫기 버튼
             Button closeBtn = new Button
             {
                 Content = "닫기",
@@ -413,12 +495,11 @@ namespace MangoClassifierWPF
             };
             closeBtn.Click += (s, e) => resultWindow.Close();
             rootGrid.Children.Add(closeBtn);
-            Grid.SetRow(closeBtn, 2);
+            Grid.SetRow(closeBtn, 3);
 
             resultWindow.Content = rootGrid;
             resultWindow.ShowDialog();
         }
-
         private bool CheckModelsLoaded()
         {
             if (_classificationSession == null || _detectionSession == null || _defectSession == null)
@@ -535,7 +616,7 @@ namespace MangoClassifierWPF
             List<DetectionResult> defectResults;
             BitmapImage? finalCroppedBitmap = null;
 
-            // [수정] 명시적 타입 사용
+            // [수정] SixLabors.ImageSharp.Image.Load<Rgb24> 사용
             using (var originalImage = SixLabors.ImageSharp.Image.Load<Rgb24>(imagePath))
             {
                 var detectionResults = await RunDetectionAsync(imagePath);
